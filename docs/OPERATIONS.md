@@ -80,6 +80,44 @@ requiere orden estricto.
 
 ## Mantenimiento
 
+### Alertas por email (módulo)
+
+Configuración en `.env` → `gen-secrets.ps1` renderiza `build/alertmanager/alertmanager.yml`
+→ Alertmanager lo lee al arrancar. **Nunca se commitea** el app-password.
+
+| Variable | Qué es |
+|---|---|
+| `ALERT_EMAIL_ENABLED` | `true`/`false` — deshabilita el email (quedan solo alertas en el Portal) |
+| `ALERT_SMTP_HOST` / `ALERT_SMTP_PORT` | Gmail: `smtp.gmail.com` / `587` |
+| `ALERT_SMTP_FROM` / `ALERT_SMTP_USER` | tu Gmail |
+| `ALERT_SMTP_PASSWORD` | **app-password de 16 caracteres** (2FA + myaccount.google.com/apppasswords) |
+| `ALERT_EMAIL_TO` | destinatarios separados por coma |
+
+Política implementada:
+- **critical** → email inmediato (`group_wait=0s`, repeat cada 4 h mientras persista)
+- **warning** → email agrupado (`group_wait=10m`, `group_interval=1h`) — anti-spam
+- **resoluciones** → también se notifican (`send_resolved=true`)
+- El **Portal siempre** recibe el webhook (historial completo), con o sin email
+
+**Aplicar un cambio de configuración:**
+```powershell
+scripts\gen-secrets.ps1
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d --force-recreate alertmanager
+```
+
+**Probar el canal sin tocar el pipeline** (alerta sintética, auto-expira en 5 min):
+```powershell
+$now = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+Invoke-RestMethod -Method Post -ContentType 'application/json' -Body ('[{"labels":{"alertname":"AlertaDePrueba","severity":"critical","instance":"test-manual","job":"manual"},"annotations":{"summary":"Notificacion de prueba","description":"Canal de email funcionando."},"startsAt":"'+$now+'"}]') "http://localhost:9093/api/v2/alerts"
+```
+
+**Teams/Slack/Telegram**: Alertmanager los soporta nativamente (salvo Teams: desde
+mayo 2026 Microsoft retiró los webhooks entrantes — vía Power Automate Workflows,
+puede requerir licencia Premium). Agregar otro canal = sumar un bloque `*_configs`
+en el template `config/alertmanager/alertmanager.yml.tmpl`.
+
+### Otros mantenimientos
+
 - **Retención de eventos**: 7 días por topic (`topic.creation.default.retention.ms`).
   Ajustable por conector. Los topics internos de Connect son compactos.
 - **Binlog MySQL**: expira a los 7 días (`binlog_expire_logs_seconds=604800`).

@@ -6,8 +6,9 @@ captura cambios fila por fila en MySQL (binlog), los publica como eventos en Kaf
 upsert + propagación de deletes + evolución de esquema básica).
 
 Incluye **Portal web propio** para registrar pipelines sin línea de comandos,
-**monitoreo completo** (Prometheus + Grafana + exporters) y **alertas**
-(Alertmanager → webhook al Portal).
+**monitoreo completo** (Prometheus + Grafana + exporters) y **alertas por email**
+(Gmail/SMTP: critical inmediato, warning agrupado, resoluciones — configurable en
+`.env`, histórico en el Portal).
 
 ## Motores soportados (origen y destino, cualquier combinación)
 

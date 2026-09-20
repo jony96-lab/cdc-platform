@@ -19,11 +19,11 @@ route:
 {{EMAIL_ROUTES_BLOCK}}
 
 receivers:
-  - name: default-portal
-    webhook_configs:
-      - url: http://portal:8085/alerts/webhook
-        send_resolved: true
-  {{EMAIL_RECEIVERS_BLOCK}}
+- name: default-portal
+  webhook_configs:
+    - url: http://portal:8085/alerts/webhook
+      send_resolved: true
+{{EMAIL_RECEIVERS_BLOCK}}
 
 inhibit_rules:
   # Si la infra base esta caida, silenciar alertas derivadas del pipeline

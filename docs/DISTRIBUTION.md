@@ -105,6 +105,7 @@ El instalador:
 ## Personalización por cliente
 
 Todo el comportamiento se parametriza por `.env`: puertos, motores, credenciales,
+**canal de alertas por email (cada cliente pone su Gmail + app-password)**,
 versiones de imágenes (`KAFKA_IMAGE`, `DEBEZIUM_CONNECT_IMAGE`, …). Los conectores
 bootstrap viven en `connectors/*.json` con placeholders `{{VARS}}` resueltos desde
 `.env` — cada cliente adapta sin tocar código.

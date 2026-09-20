@@ -140,5 +140,14 @@ reconstruye con el snapshot inicial.
 - **critical** (conector caído, BD inaccesible, broker/worker caído): actuar ya;
   el pipeline está detenido (pero no se pierden datos mientras el binlog aguante).
 - **warning** (lag, DLQ, heartbeat, disco): actuar en el día.
-- Contacto: configurar el receptor `email` en `config/alertmanager/alertmanager.yml`
-  (está comentado con plantilla) y recargar Alertmanager.
+- Contacto: el módulo de email (Gmail app-password) ya está configurado —
+  critical llega inmediato, warning agrupado. Cambiar canales/destinos en
+  `.env` + re-render (ver OPERATIONS.md § Alertas por email).
+
+## Probar la cadena de alertas de punta a punta (drill)
+
+1. Alerta sintética (no toca el pipeline): `POST /api/v2/alerts` a Alertmanager — ver OPERATIONS.
+2. Real: pausar el sink desde el Portal → a los ~3 min: alerta `CdcConnectorDown`
+   firing + email CRITICAL + fila en Portal → reanudar → email RESOLVED.
+3. Validar: bandeja de entrada (revisar spam la primera vez), badge rojo del
+   Portal, historial con horarios de inicio/fin.
