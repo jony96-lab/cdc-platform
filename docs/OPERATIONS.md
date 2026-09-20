@@ -102,14 +102,35 @@ requiere orden estricto.
   datos persisten en el volumen `cdc-kafka-data`.
 - **Portal/Kafbat/Grafana**: cambiar tag en `.env` → `up.ps1`.
 
-## Agregar SQL Server como fuente (cuando haya instancia)
+## Agregar SQL Server como fuente o destino
 
-El plugin y el driver mssql-jdbc **ya están en la imagen**. Pasos:
-1. Habilitar CDC en la BD: `EXEC sys.sp_cdc_enable_db` y por tabla
-   `EXEC sys.sp_cdc_enable_table @source_schema=..., @source_table=..., @capture_instance=...`
-2. Preflight del Portal con motor `sqlserver` (puerto 1433).
-3. Wizard del Portal → crear pipeline. (El conector usa
-   `io.debezium.connector.sqlserver.SqlServerConnector`.)
+El driver `mssql-jdbc` y el conector **ya están en la imagen de Connect**, y el
+Portal valida todo antes de crear nada (CDC habilitado por BD y por tabla,
+permisos `db_owner`/`VIEW SERVER STATE`, `SQL Agent` corriendo).
+
+**Fuente SQL Server (requisitos):**
+1. SQL Server Agent corriendo: `Start-Service SQLSERVERAGENT` (el capture job lo lee).
+2. CDC por base: `USE <bd>; EXEC sys.sp_cdc_enable_db;` (requiere sysadmin).
+3. CDC por tabla: `EXEC sys.sp_cdc_enable_table @source_schema='dbo', @source_name='<tabla>', @role_name=NULL, @supports_net_changes=0;`
+4. Usuario Debezium: `db_owner` + `db_datareader` + `GRANT VIEW SERVER STATE` (o sysadmin directo).
+5. Wizard del Portal: motor *SQL Server*, puerto 1433, tablas como `dbo.tabla`.
+
+**Destino SQL Server:** el rol necesita `CREATE TABLE` en la BD destino
+(`ALTER ROLE db_owner ADD MEMBER [usuario];`). El upsert usa MERGE nativo.
+
+**Demo containerizada sin instalar nada:**
+```powershell
+$env:COMPOSE_PROFILES = 'demodb,sqlserver'
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml -f docker-compose.demodb.yml up -d
+# levanta SQL Server 2022 (acepta EULA al hacer up) con base `inventory`,
+# tablas, CDC habilitado y login cdc_user listos (sqlserver-init)
+```
+Nota: SQL Server demo agrega ~2 GB RAM (limitado con `MSSQL_MEMORY_LIMIT_MB`) y el
+puerto 1433 al host.
+
+**Plantillas GitOps de los 3 motores (origen y destino):** `connectors/engines/` —
+copiar a `connectors/`, reemplazar `<slug>`/`<base_datos>`/`<tabla>` y ejecutar
+`register-connectors.ps1`.
 
 ## Modo demodb (portabilidad total)
 

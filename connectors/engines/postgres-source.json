@@ -1,0 +1,24 @@
+{
+  "name": "postgres-source-<slug>",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    "database.hostname": "{{PG_HOST}}",
+    "database.port": "{{PG_PORT}}",
+    "database.user": "{{PG_CDC_ROLE}}",
+    "database.password": "${file:/opt/connect-secrets/default.properties:pg_cdc_password}",
+    "database.dbname": "<base_datos>",
+    "plugin.name": "pgoutput",
+    "slot.name": "debezium_<slug>",
+    "publication.name": "cdc_pub_<slug>",
+    "publication.autocreate.mode": "filtered",
+    "table.include.list": "public.<tabla1>,public.<tabla2>",
+    "topic.prefix": "postgres",
+    "snapshot.mode": "initial",
+    "include.schema.changes": "true",
+    "heartbeat.interval.ms": "10000",
+    "topic.creation.default.partitions": "3",
+    "topic.creation.default.replication.factor": "1",
+    "topic.creation.default.retention.ms": "604800000"
+  }
+}

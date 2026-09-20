@@ -1,0 +1,23 @@
+{
+  "name": "mysql-source-<slug>",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "tasks.max": "1",
+    "database.hostname": "{{MYSQL_HOST}}",
+    "database.port": "{{MYSQL_PORT}}",
+    "database.user": "{{MYSQL_CDC_USER}}",
+    "database.password": "${file:/opt/connect-secrets/default.properties:mysql_cdc_password}",
+    "database.server.id": "{{MYSQL_SOURCE_SERVER_ID}}",
+    "database.include.list": "<base_datos>",
+    "table.include.list": "<base_datos>.<tabla1>,<base_datos>.<tabla2>",
+    "topic.prefix": "mysql",
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:19092",
+    "schema.history.internal.kafka.topic": "_schema_history_mysql",
+    "snapshot.mode": "initial",
+    "include.schema.changes": "true",
+    "heartbeat.interval.ms": "10000",
+    "topic.creation.default.partitions": "3",
+    "topic.creation.default.replication.factor": "1",
+    "topic.creation.default.retention.ms": "604800000"
+  }
+}

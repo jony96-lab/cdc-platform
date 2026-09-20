@@ -113,6 +113,12 @@ disponibles para futuros pipelines (postgres, sqlserver, mongodb, oracle…).
 
 - Cada pipeline del Portal usa su propio `topic.prefix=p_<slug>`, `server.id`
   derivado, schema-history y DLQ independientes → pipelines aislados entre sí.
+- **Motores intercambiables**: el factory del Portal soporta MySQL/PostgreSQL/SQL
+  Server como origen y destino (cualquier combinación 3×3). El preflight valida por
+  motor: MySQL (binlog ROW/FULL, privilegios de replicación), PostgreSQL
+  (`wal_level=logical`, rol `REPLICATION`, permisos de esquema), SQL Server (CDC
+  habilitado en BD y tablas, `db_owner`, `SQL Agent`). Plantillas GitOps de todas
+  las combinaciones en `connectors/engines/`.
 - **Scale-out horizontal**: `scale-out.ps1` agrega workers al mismo `GROUP_ID`;
   Connect rebalancea conectores/tasks automáticamente (probado: source en
   worker2, sink en worker1). Más paralelismo por pipeline: subir `tasks.max` +

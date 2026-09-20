@@ -19,7 +19,7 @@ SINK_CLASS = "io.debezium.connector.jdbc.JdbcSinkConnector"
 JDBC_URLS = {
     "postgres": "jdbc:postgresql://{host}:{port}/{db}",
     "mysql": "jdbc:mysql://{host}:{port}/{db}",
-    "sqlserver": "jdbc:sqlserver://{host}:{port};databaseName={db}",
+    "sqlserver": "jdbc:sqlserver://{host}:{port};databaseName={db};encrypt=false;trustServerCertificate=true",
 }
 
 
@@ -54,6 +54,18 @@ def build_source_config(p: dict, secrets_file: str) -> dict:
         if p.get("source_tables"):
             tables = [t.strip() for t in p["source_tables"].split(",") if t.strip()]
             common["table.include.list"] = ",".join(tables)
+    elif engine == "sqlserver":
+        # SQL Server: requiere database.dbname, sin cifrado TLS obligatorio en on-prem,
+        # y su historial de schemas (igual que MySQL)
+        common["database.dbname"] = p["source_db"]
+        common["database.encrypt"] = "false"
+        if p.get("source_tables"):
+            tables = [t.strip() for t in p["source_tables"].split(",") if t.strip()]
+            common["table.include.list"] = ",".join(
+                t if "." in t else f"dbo.{t}" for t in tables
+            )
+        common["schema.history.internal.kafka.bootstrap.servers"] = settings.kafka_bootstrap
+        common["schema.history.internal.kafka.topic"] = f"_schema_history_{p['slug']}"
     else:  # mysql
         common.pop("database.dbname")
         common["database.server.id"] = str(p.get("server_id") or settings.mysql_source_server_id)

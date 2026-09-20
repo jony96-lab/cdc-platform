@@ -1,0 +1,23 @@
+{
+  "name": "sqlserver-source-<slug>",
+  "config": {
+    "connector.class": "io.debezium.connector.sqlserver.SqlServerConnector",
+    "tasks.max": "1",
+    "database.hostname": "{{SQLSERVER_HOST}}",
+    "database.port": "{{SQLSERVER_PORT}}",
+    "database.user": "{{SQLSERVER_CDC_USER}}",
+    "database.password": "${file:/opt/connect-secrets/default.properties:sqlserver_cdc_password}",
+    "database.dbname": "<base_datos>",
+    "database.encrypt": "false",
+    "table.include.list": "dbo.<tabla1>,dbo.<tabla2>",
+    "topic.prefix": "sqlserver",
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:19092",
+    "schema.history.internal.kafka.topic": "_schema_history_sqlserver",
+    "snapshot.mode": "initial",
+    "include.schema.changes": "true",
+    "heartbeat.interval.ms": "10000",
+    "topic.creation.default.partitions": "3",
+    "topic.creation.default.replication.factor": "1",
+    "topic.creation.default.retention.ms": "604800000"
+  }
+}

@@ -1,0 +1,110 @@
+-- ============================================================
+-- SQL Server de demostracion (perfil "sqlserver" de demodb):
+-- login CDC, base inventory con CDC habilitado, tablas sembradas.
+-- Se ejecuta con sqlcmd por scripts del compose (perfil sqlserver).
+-- Template: {{VAR}} es sustituido por gen-secrets.ps1
+-- ============================================================
+
+USE master;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.sql_logins WHERE name = '{{SQLSERVER_CDC_USER}}')
+    CREATE LOGIN {{SQLSERVER_CDC_USER}} WITH PASSWORD = '{{SQLSERVER_CDC_PASSWORD}}', CHECK_POLICY = ON;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.sql_logins WHERE name = '{{SQLSERVER_APP_USER}}')
+    CREATE LOGIN {{SQLSERVER_APP_USER}} WITH PASSWORD = '{{SQLSERVER_APP_PASSWORD}}', CHECK_POLICY = ON;
+GO
+
+IF DB_ID('inventory') IS NULL CREATE DATABASE inventory;
+GO
+USE inventory;
+GO
+
+-- Usuario CDC: db_owner + db_datareader + VIEW SERVER STATE + lectura del schema cdc
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = '{{SQLSERVER_CDC_USER}}')
+    CREATE USER {{SQLSERVER_CDC_USER}} FOR LOGIN {{SQLSERVER_CDC_USER}};
+ALTER ROLE db_owner ADD MEMBER {{SQLSERVER_CDC_USER}};
+ALTER ROLE db_datareader ADD MEMBER {{SQLSERVER_CDC_USER}};
+GO
+GRANT VIEW SERVER STATE TO {{SQLSERVER_CDC_USER}};
+GO
+
+-- Usuario de aplicacion para pruebas de escritura
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = '{{SQLSERVER_APP_USER}}')
+    CREATE USER {{SQLSERVER_APP_USER}} FOR LOGIN {{SQLSERVER_APP_USER}};
+ALTER ROLE db_owner ADD MEMBER {{SQLSERVER_APP_USER}};
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'customers')
+CREATE TABLE customers (
+  id INT IDENTITY(1,1) PRIMARY KEY,
+  first_name NVARCHAR(64) NOT NULL,
+  last_name NVARCHAR(64) NOT NULL,
+  email NVARCHAR(128) NOT NULL UNIQUE,
+  phone NVARCHAR(32) NULL,
+  city NVARCHAR(64) NULL,
+  created_at DATETIME2 NOT NULL DEFAULT SYSDATETIME()
+);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'products')
+CREATE TABLE products (
+  id INT IDENTITY(1,1) PRIMARY KEY,
+  sku NVARCHAR(32) NOT NULL UNIQUE,
+  name NVARCHAR(128) NOT NULL,
+  description NVARCHAR(MAX) NULL,
+  price DECIMAL(10,2) NOT NULL DEFAULT 0,
+  stock INT NOT NULL DEFAULT 0,
+  metadata NVARCHAR(MAX) NULL
+    CONSTRAINT CK_products_metadata CHECK (metadata IS NULL OR ISJSON(metadata) = 1),
+  created_at DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+  updated_at DATETIME2 NOT NULL DEFAULT SYSDATETIME()
+);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'orders')
+CREATE TABLE orders (
+  id BIGINT IDENTITY(1,1) PRIMARY KEY,
+  customer_id INT NOT NULL
+    CONSTRAINT FK_orders_customer REFERENCES customers(id),
+  product_id INT NOT NULL
+    CONSTRAINT FK_orders_product REFERENCES products(id),
+  quantity INT NOT NULL DEFAULT 1,
+  unit_price DECIMAL(10,2) NOT NULL,
+  status NVARCHAR(16) NOT NULL DEFAULT 'pending'
+    CONSTRAINT CK_orders_status CHECK (status IN ('pending','paid','shipped','delivered','cancelled')),
+  notes NVARCHAR(255) NULL,
+  ordered_at DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+  updated_at DATETIME2 NOT NULL DEFAULT SYSDATETIME()
+);
+GO
+
+-- Habilitar CDC (requiere SQL Server Agent corriendo)
+IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = 'inventory' AND is_cdc_enabled = 1)
+    EXEC sys.sp_cdc_enable_db;
+GO
+IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'customers' AND is_tracked_by_cdc = 0)
+    EXEC sys.sp_cdc_enable_table @source_schema = 'dbo', @source_name = 'customers', @role_name = NULL, @supports_net_changes = 0;
+GO
+IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'products' AND is_tracked_by_cdc = 0)
+    EXEC sys.sp_cdc_enable_table @source_schema = 'dbo', @source_name = 'products', @role_name = NULL, @supports_net_changes = 0;
+GO
+IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'orders' AND is_tracked_by_cdc = 0)
+    EXEC sys.sp_cdc_enable_table @source_schema = 'dbo', @source_name = 'orders', @role_name = NULL, @supports_net_changes = 0;
+GO
+
+-- Seed minimo (idempotente)
+IF NOT EXISTS (SELECT 1 FROM customers WHERE email = 'ana.garcia@example.com')
+INSERT INTO customers (first_name, last_name, email, phone, city) VALUES
+  ('Ana','Garcia','ana.garcia@example.com','+34 600 000 001','Madrid'),
+  ('Bruno','Diaz','bruno.diaz@example.com','+54 11 5555 0002','Buenos Aires'),
+  ('Carla','Mendez','carla.mendez@example.com','+52 55 1234 0003','CDMX');
+GO
+IF NOT EXISTS (SELECT 1 FROM products WHERE sku = 'SKU-001')
+INSERT INTO products (sku, name, description, price, stock, metadata) VALUES
+  ('SKU-001','Teclado mecanico','Switches rojos, RGB',89.99,42,'{"weight_g":980}'),
+  ('SKU-002','Mouse inalambrico','Sensor 16000 DPI',49.50,120,'{"weight_g":99}');
+GO
+IF NOT EXISTS (SELECT 1 FROM orders WHERE customer_id = 1 AND product_id = 1)
+INSERT INTO orders (customer_id, product_id, quantity, unit_price, status, notes) VALUES
+  (1,1,1,89.99,'delivered','Entrega en oficina'),
+  (2,2,2,49.50,'paid','Regalo');
+GO

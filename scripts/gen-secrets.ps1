@@ -30,6 +30,17 @@ $props = @(
 $mycnf = "[client]`nuser=$($vars['MYSQL_CDC_USER'])`npassword=$($vars['MYSQL_CDC_PASSWORD'])`n"
 [System.IO.File]::WriteAllText((Join-Path $secretsDir 'mysqld-exporter.my.cnf'), $mycnf, (New-Object System.Text.UTF8Encoding($false)))
 
+# --- SQL Server (OPCIONAL: solo si hay credenciales en .env) ---
+if ($vars['SQLSERVER_CDC_PASSWORD']) {
+    $props += "`nsqlserver_cdc_password=$($vars['SQLSERVER_CDC_PASSWORD'])"
+    [System.IO.File]::WriteAllText((Join-Path $secretsDir 'default.properties'), $props, (New-Object System.Text.UTF8Encoding($false)))
+    if (-not $vars['SQLSERVER_APP_USER']) { $vars['SQLSERVER_APP_USER'] = 'demo_app' }
+    Render-Template -Src (Join-Path $root 'sql\templates\sqlserver-01-init.sql.tmpl') -Dst (Join-Path $root 'build\demodb-init\sqlserver\01-init.sql') -Vars $vars
+    Write-Host "OK  SQL Server listo (perfil sqlserver de demodb)" -ForegroundColor Green
+} else {
+    Write-Host "OK  SQL Server omitido (sin credenciales en .env - opcional)" -ForegroundColor DarkGray
+}
+
 # --- SQL para provisioning en host ---
 Render-Template -Src (Join-Path $root 'sql\templates\mysql-cdc-user.sql.tmpl')       -Dst (Join-Path $root 'build\host-sql\mysql\01-cdc-user.sql')          -Vars $vars
 Render-Template -Src (Join-Path $root 'sql\templates\mysql-seed-inventory.sql.tmpl') -Dst (Join-Path $root 'build\host-sql\mysql\02-seed-inventory.sql')    -Vars $vars

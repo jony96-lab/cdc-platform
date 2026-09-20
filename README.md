@@ -9,6 +9,21 @@ Incluye **Portal web propio** para registrar pipelines sin línea de comandos,
 **monitoreo completo** (Prometheus + Grafana + exporters) y **alertas**
 (Alertmanager → webhook al Portal).
 
+## Motores soportados (origen y destino, cualquier combinación)
+
+| Motor | Origen (source) | Destino (sink JDBC) |
+|---|---|---|
+| MySQL 8.x / 9.x | ✅ listo (binlog) | ✅ listo (driver incluido) |
+| PostgreSQL 17/18 | ✅ listo (pgoutput nativo) | ✅ listo (probado en esta instalación) |
+| SQL Server 2017–2022 | ✅ listo — requiere CDC habilitado (`sp_cdc_enable_table`) + SQL Agent; el preflight del Portal lo valida | ✅ listo (driver incluido, upsert vía MERGE) |
+
+- **Portal**: wizard con validación previa real para los 3 motores (alcanzabilidad,
+  binlog/wal/CDC, permisos). Plantillas GitOps de todas las combinaciones en
+  `connectors/engines/`.
+- **Demo opcional de SQL Server**: `COMPOSE_PROFILES=demodb,sqlserver` levanta un
+  SQL Server 2022 containerizado con base `inventory`, CDC habilitado y usuario CDC
+  ya creado (README del perfil: ver `docker-compose.demodb.yml`).
+
 ```
 MySQL 8.0 (host) ──binlog──► Debezium MySQL Connector ──► Kafka 4.3 (KRaft)
                                                               │
@@ -121,6 +136,16 @@ docs/            # ARCHITECTURE.md, OPERATIONS.md, RUNBOOK.md
 Más detalle: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ·
 operación diaria: [docs/OPERATIONS.md](docs/OPERATIONS.md) ·
 fallas y recuperación: [docs/RUNBOOK.md](docs/RUNBOOK.md)
+
+## Llevarla a otra máquina o servidor
+
+```powershell
+git clone <repo> && cd cdc-platform
+.\install.ps1        # pregunta demo (containerizado) vs host (tus BDs), y hace todo
+```
+
+Linux/servidores: `./install.sh` (modo demo, cero dependencias). Publicación,
+versionado y ruta air-gapped: [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).
 
 ## Versiones (verificadas 2026-09)
 

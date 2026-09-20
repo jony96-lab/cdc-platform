@@ -52,6 +52,27 @@ def test_preflight_detects_bad_credentials():
     assert "Autenticacion MySQL" in r.text
 
 
+def test_preflight_sqlserver_fails_gracefully():
+    """SQL Server sin instancia: los checks deben fallar con guia clara, sin romper."""
+    form = {
+        "source_engine": "sqlserver",
+        "source_host": TestEnv.mysql_host,          # host sin SQL Server
+        "source_port": "1433",
+        "source_db": "inventory",
+        "source_user": "cdc_user",
+        "source_password": "lo-que-sea",
+        "target_engine": "postgres",
+        "target_host": TestEnv.pg_host,
+        "target_port": str(TestEnv.pg_port),
+        "target_db": TestEnv.pg_db,
+        "target_user": TestEnv.pg_user,
+        "target_password": TestEnv.pg_password,
+    }
+    r = httpx.post(f"{TestEnv.portal_url}/pipelines/preflight", data=form, timeout=60)
+    assert r.status_code == 200
+    assert "TCP" in r.text and "row-fail" in r.text
+
+
 def test_preflight_ok_with_good_credentials():
     """Preflight con las credenciales reales del pipeline debe pasar (criticos en OK)."""
     import os

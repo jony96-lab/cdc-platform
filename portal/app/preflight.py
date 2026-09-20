@@ -173,12 +173,84 @@ def mysql_target_checks(host: str, port: int, user: str, password: str,
     return results
 
 
+def sqlserver_source_checks(host: str, port: int, user: str, password: str,
+                            database: str) -> list[dict]:
+    """SQL Server como fuente: requiere CDC habilitado (BD + tablas) y SQL Agent corriendo."""
+    import pymssql
+
+    results = [tcp_check(host, port)]
+    if not results[0]["ok"]:
+        return results
+    try:
+        conn = pymssql.connect(server=host, port=str(port), user=user, password=password,
+                               database=database, login_timeout=5)
+    except Exception as e:
+        results.append({"name": "Autenticacion SQL Server", "ok": False,
+                        "detail": str(e)[:200],
+                        "fix": "Verifica login/password. El usuario Debezium debe ser sysadmin, "
+                               "o db_owner + db_datareader + VIEW SERVER STATE."})
+        return results
+    try:
+        with conn.cursor(as_dict=False) as cur:
+            cur.execute("SELECT is_cdc_enabled FROM sys.databases WHERE name=%s", (database,))
+            row = cur.fetchone()
+        cdc_db_ok = bool(row and row[0])
+        results.append({"name": f"CDC habilitado en BD '{database}'", "ok": cdc_db_ok,
+                        "detail": f"is_cdc_enabled={row[0] if row else '?'}",
+                        "fix": f"USE [{database}]; EXEC sys.sp_cdc_enable_db; (requiere rol sysadmin)"})
+        if cdc_db_ok:
+            with conn.cursor(as_dict=False) as cur:
+                cur.execute("SELECT COUNT(*) FROM sys.tables WHERE is_tracked_by_cdc=1")
+                n = cur.fetchone()[0]
+            results.append({"name": "Tablas bajo CDC (capture instances)", "ok": n > 0,
+                            "detail": f"{n} tabla(s) con is_tracked_by_cdc=1",
+                            "fix": "EXEC sys.sp_cdc_enable_table @source_schema='dbo', "
+                                   "@source_name='<tabla>', @role_name=NULL;"})
+        results.append({"name": "SQL Server Agent (capture job)", "ok": None,
+                        "detail": "verifica que el servicio 'SQL Server Agent' esté corriendo: "
+                                  "sin él los capture jobs no leen el log",
+                        "fix": "Start-Service SQLSERVERAGENT (o verificá en SSMS)"})
+    finally:
+        conn.close()
+    return results
+
+
+def sqlserver_target_checks(host: str, port: int, user: str, password: str,
+                            database: str) -> list[dict]:
+    """SQL Server como destino: el rol necesita poder crear tablas (schema.evolution=basic)."""
+    import pymssql
+
+    results = [tcp_check(host, port)]
+    if not results[0]["ok"]:
+        return results
+    try:
+        conn = pymssql.connect(server=host, port=str(port), user=user, password=password,
+                               database=database, login_timeout=5)
+    except Exception as e:
+        results.append({"name": "Autenticacion SQL Server (destino)", "ok": False,
+                        "detail": str(e)[:200],
+                        "fix": "Verifica login/password y que la BD exista."})
+        return results
+    try:
+        with conn.cursor(as_dict=False) as cur:
+            cur.execute("SELECT HAS_PERMS_BY_NAME(NULL, NULL, 'CREATE TABLE')")
+            can = bool(cur.fetchone()[0])
+        results.append({"name": "Permiso CREATE TABLE en BD destino", "ok": can,
+                        "detail": "necesario para auto-crear tablas (schema.evolution=basic)",
+                        "fix": "ALTER ROLE db_owner ADD MEMBER [<usuario>]; o GRANT CREATE TABLE TO <usuario>;"})
+    finally:
+        conn.close()
+    return results
+
+
 def db_checks(engine: str, role: str, host: str, port: int, user: str,
               password: str, database: str) -> list[dict]:
     if engine == "mysql":
         fn = mysql_source_checks if role == "source" else mysql_target_checks
     elif engine == "postgres":
         fn = postgres_source_checks if role == "source" else postgres_target_checks
+    elif engine == "sqlserver":
+        fn = sqlserver_source_checks if role == "source" else sqlserver_target_checks
     else:
         return [{"name": "Motor", "ok": False, "detail": f"motor desconocido: {engine}", "fix": ""}]
     return fn(host, port, user, password, database)

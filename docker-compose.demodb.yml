@@ -71,3 +71,45 @@ volumes:
     name: cdc-mysql-demo-data
   postgres-demo-data:
     name: cdc-postgres-demo-data
+  sqlserver-demo-data:
+    name: cdc-sqlserver-demo-data
+
+services:
+
+  # ---------- SQL Server 2022 (perfil opcional "sqlserver") ----------
+  # No arranca con demodb: requiere EULA y ~2 GB. Activar con COMPOSE_PROFILES=demodb,sqlserver
+  sqlserver-demo:
+    image: ${SQLSERVER_IMAGE}
+    container_name: cdc-sqlserver-demo
+    profiles: ["sqlserver"]
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_SA_PASSWORD: ${SQLSERVER_SA_PASSWORD}
+      MSSQL_MEMORY_LIMIT_MB: "1500"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-demo-data:/var/mssql
+    networks: [cdc-net]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"${SQLSERVER_SA_PASSWORD}\" -C -Q 'SELECT 1' >/dev/null"]
+      interval: 10s
+      timeout: 10s
+      retries: 18
+      start_period: 90s
+
+  # Init one-shot: logins CDC + base inventory + tablas + CDC habilitado
+  sqlserver-init:
+    image: ${SQLSERVER_IMAGE}
+    container_name: cdc-sqlserver-init
+    profiles: ["sqlserver"]
+    depends_on:
+      sqlserver-demo:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c", "/opt/mssql-tools18/bin/sqlcmd -S sqlserver-demo -U sa -P \"${SQLSERVER_SA_PASSWORD}\" -C -i /init/01-init.sql && echo 'SQL Server init OK'"]
+    volumes:
+      - ./build/demodb-init/sqlserver:/init:ro
+    networks: [cdc-net]
+    restart: "no"

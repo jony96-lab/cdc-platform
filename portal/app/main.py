@@ -151,7 +151,8 @@ async def run_preflight(
         checks.append({"name": "Kafka Connect REST", "ok": False, "detail": str(e)[:150],
                        "fix": "El worker Connect no responde en " + settings.connect_url})
 
-    ok_all = all(c["ok"] for c in checks if "opcional" not in c["name"])
+    ok_all = all(c["ok"] for c in checks
+                 if "opcional" not in c["name"] and "verificar manualmente" not in c["name"])
     return templates.TemplateResponse(
         request, "partials/preflight.html",
         {"checks": checks, "ok_all": ok_all}, status_code=200)
