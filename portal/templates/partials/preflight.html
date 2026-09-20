@@ -1,0 +1,19 @@
+<h3>Resultado del pre-flight</h3>
+{% if ok_all %}
+<div class="alert-box ok" id="preflight-ok">✔ Todas las verificaciones críticas pasaron. Puedes crear el pipeline.</div>
+{% else %}
+<div class="alert-box">✖ Hay verificaciones que fallan. Corrígelas y vuelve a ejecutar el pre-flight.</div>
+{% endif %}
+<table class="grid checks">
+  <thead><tr><th></th><th>Check</th><th>Detalle</th><th>Cómo arreglarlo</th></tr></thead>
+  <tbody>
+  {% for c in checks %}
+    <tr class="{{ 'row-ok' if c.ok else 'row-fail' }}">
+      <td>{{ '✔' if c.ok else '✖' }}</td>
+      <td>{{ c.name }}</td>
+      <td class="mono">{{ c.detail }}</td>
+      <td class="fix">{% if not c.ok %}{{ c.fix }}{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>

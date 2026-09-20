@@ -1,0 +1,106 @@
+-- ============================================================
+-- Schema demo `inventory` en MySQL (fuente del pipeline CDC)
+-- Idempotente: se puede re-ejecutar.
+-- ============================================================
+
+CREATE DATABASE IF NOT EXISTS `{{CDC_SOURCE_DB}}`
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+USE `{{CDC_SOURCE_DB}}`;
+
+CREATE TABLE IF NOT EXISTS customers (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  first_name VARCHAR(64) NOT NULL,
+  last_name VARCHAR(64) NOT NULL,
+  email VARCHAR(128) NOT NULL UNIQUE,
+  phone VARCHAR(32) DEFAULT NULL,
+  city VARCHAR(64) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS products (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  sku VARCHAR(32) NOT NULL UNIQUE,
+  name VARCHAR(128) NOT NULL,
+  description TEXT,
+  price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  stock INT NOT NULL DEFAULT 0,
+  metadata JSON DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS orders (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  customer_id INT NOT NULL,
+  product_id INT NOT NULL,
+  quantity INT NOT NULL DEFAULT 1,
+  unit_price DECIMAL(10,2) NOT NULL,
+  total DECIMAL(12,2) AS (quantity * unit_price) STORED,
+  status ENUM('pending','paid','shipped','delivered','cancelled') NOT NULL DEFAULT 'pending',
+  notes VARCHAR(255) DEFAULT NULL,
+  ordered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id),
+  CONSTRAINT fk_orders_product FOREIGN KEY (product_id) REFERENCES products(id)
+) ENGINE=InnoDB;
+
+-- Seed (solo si customers esta vacia)
+INSERT INTO customers (first_name, last_name, email, phone, city)
+SELECT * FROM (
+  SELECT 'Ana' a, 'Garcia' b, 'ana.garcia@example.com' c, '+34 600 000 001' d, 'Madrid' e UNION ALL
+  SELECT 'Bruno', 'Diaz', 'bruno.diaz@example.com', '+54 11 5555 0002', 'Buenos Aires' UNION ALL
+  SELECT 'Carla', 'Mendez', 'carla.mendez@example.com', '+52 55 1234 0003', 'CDMX' UNION ALL
+  SELECT 'Diego', 'Torres', 'diego.torres@example.com', '+57 1 234 0004', 'Bogota' UNION ALL
+  SELECT 'Elena', 'Vargas', 'elena.vargas@example.com', '+56 2 2345 0005', 'Santiago' UNION ALL
+  SELECT 'Federico', 'Lopez', 'federico.lopez@example.com', '+598 2 345 0006', 'Montevideo' UNION ALL
+  SELECT 'Gabriela', 'Ruiz', 'gabriela.ruiz@example.com', '+58 212 456 0007', 'Caracas' UNION ALL
+  SELECT 'Hugo', 'Silva', 'hugo.silva@example.com', '+55 11 5678 0008', 'Sao Paulo' UNION ALL
+  SELECT 'Isabel', 'Rojas', 'isabel.rojas@example.com', '+51 1 6789 0009', 'Lima' UNION ALL
+  SELECT 'Jorge', 'Castro', 'jorge.castro@example.com', '+506 2 7890 0010', 'San Jose' UNION ALL
+  SELECT 'Karla', 'Morales', 'karla.morales@example.com', '+502 2 8901 0011', 'Guatemala' UNION ALL
+  SELECT 'Luis', 'Ortega', 'luis.ortega@example.com', '+593 2 9012 0012', 'Quito' UNION ALL
+  SELECT 'Marta', 'Delgado', 'marta.delgado@example.com', '+595 21 0123 0013', 'Asuncion' UNION ALL
+  SELECT 'Nicolás', 'Herrera', 'nicolas.herrera@example.com', '+591 2 1234 0014', 'La Paz' UNION ALL
+  SELECT 'Olga', 'Ibanez', 'olga.ibanez@example.com', '+34 600 000 015', 'Barcelona'
+) AS seed
+WHERE NOT EXISTS (SELECT 1 FROM customers);
+
+INSERT INTO products (sku, name, description, price, stock, metadata)
+SELECT * FROM (
+  SELECT 'SKU-001' a, 'Teclado mecanico' b, 'Switches rojos, RGB' c, 89.99 d, 42 e, CAST('{"weight_g":980,"warranty_months":24}' AS JSON) f UNION ALL
+  SELECT 'SKU-002', 'Mouse inalambrico', 'Sensor 16000 DPI', 49.50, 120, CAST('{"weight_g":99,"warranty_months":12}' AS JSON) UNION ALL
+  SELECT 'SKU-003', 'Monitor 27" 4K', 'IPS 144Hz HDR600', 429.00, 15, CAST('{"weight_g":6400,"warranty_months":36}' AS JSON) UNION ALL
+  SELECT 'SKU-004', 'Webcam 1080p', 'Microfono dual integrado', 59.90, 73, CAST('{"weight_g":162,"warranty_months":12}' AS JSON) UNION ALL
+  SELECT 'SKU-005', 'Headset gamer', 'Surround 7.1 virtual', 79.99, 58, CAST('{"weight_g":310,"warranty_months":24}' AS JSON) UNION ALL
+  SELECT 'SKU-006', 'Hub USB-C 8en1', 'HDMI 4K60 + PD 100W', 39.99, 200, CAST('{"weight_g":62,"warranty_months":12}' AS JSON) UNION ALL
+  SELECT 'SKU-007', 'SSD NVMe 1TB', 'PCIe 4.0, 7000MB/s', 109.00, 90, CAST('{"weight_g":8,"warranty_months":60}' AS JSON) UNION ALL
+  SELECT 'SKU-008', 'Notebook stand', 'Aluminio ajustable', 29.90, 64, CAST('{"weight_g":890,"warranty_months":12}' AS JSON) UNION ALL
+  SELECT 'SKU-009', 'Cable HDMI 2.1', '2m, 8K60', 14.50, 300, CAST('{"weight_g":120,"warranty_months":24}' AS JSON) UNION ALL
+  SELECT 'SKU-010', 'Microfono USB', 'Cardioide, 24bit/96kHz', 119.00, 27, CAST('{"weight_g":450,"warranty_months":24}' AS JSON)
+) AS seed
+WHERE NOT EXISTS (SELECT 1 FROM products);
+
+INSERT INTO orders (customer_id, product_id, quantity, unit_price, status, notes)
+SELECT * FROM (
+  SELECT 1 a, 1 b, 1 c, 89.99 d, 'delivered' e, 'Entrega en oficina' f UNION ALL
+  SELECT 1, 3, 1, 429.00, 'shipped', NULL UNION ALL
+  SELECT 2, 2, 2, 49.50, 'paid', 'Regalo' UNION ALL
+  SELECT 3, 5, 1, 79.99, 'pending', NULL UNION ALL
+  SELECT 4, 7, 2, 109.00, 'delivered', 'Cliente corporativo' UNION ALL
+  SELECT 5, 4, 1, 59.90, 'cancelled', 'Stock agotado en su region' UNION ALL
+  SELECT 6, 6, 3, 39.99, 'paid', NULL UNION ALL
+  SELECT 7, 10, 1, 119.00, 'pending', 'Streaming setup' UNION ALL
+  SELECT 8, 9, 5, 14.50, 'delivered', NULL UNION ALL
+  SELECT 9, 8, 1, 29.90, 'shipped', NULL UNION ALL
+  SELECT 10, 1, 1, 89.99, 'paid', NULL UNION ALL
+  SELECT 11, 3, 1, 429.00, 'pending', 'Espera confirmacion de pago' UNION ALL
+  SELECT 12, 2, 1, 49.50, 'delivered', NULL UNION ALL
+  SELECT 13, 7, 1, 109.00, 'shipped', NULL UNION ALL
+  SELECT 14, 5, 2, 79.99, 'paid', NULL UNION ALL
+  SELECT 15, 4, 1, 59.90, 'delivered', NULL UNION ALL
+  SELECT 2, 6, 1, 39.99, 'pending', NULL UNION ALL
+  SELECT 3, 9, 2, 14.50, 'paid', NULL UNION ALL
+  SELECT 4, 8, 2, 29.90, 'delivered', NULL UNION ALL
+  SELECT 5, 10, 1, 119.00, 'cancelled', 'Compra duplicada'
+) AS seed
+WHERE NOT EXISTS (SELECT 1 FROM orders);

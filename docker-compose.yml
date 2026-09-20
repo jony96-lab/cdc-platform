@@ -1,0 +1,207 @@
+name: cdc-platform
+
+networks:
+  cdc-net:
+    name: cdc-net
+    driver: bridge
+
+volumes:
+  kafka-data:
+    name: cdc-kafka-data
+  portal-data:
+    name: cdc-portal-data
+  grafana-data:
+    name: cdc-grafana-data
+
+x-host-gateway: &host-gateway
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
+services:
+
+  # ================= Kafka broker (KRaft, single node) =================
+  kafka:
+    build:
+      context: .
+      dockerfile: images/kafka/Dockerfile
+      args:
+        KAFKA_BASE_IMAGE: ${KAFKA_IMAGE}
+        CURL_IMAGE: ${CURL_IMAGE}
+        JMX_EXPORTER_VERSION: ${JMX_EXPORTER_VERSION}
+    image: cdc-platform/kafka:4.3.1
+    container_name: cdc-kafka
+    ports:
+      - "${KAFKA_EXTERNAL_PORT:-9092}:9092"
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_CLUSTER_ID: ${KAFKA_CLUSTER_ID}
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:19092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092,EXTERNAL://localhost:${KAFKA_EXTERNAL_PORT:-9092}
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_OPTS: "-javaagent:/opt/jmx/jmx_prometheus_javaagent.jar=7071:/opt/jmx/kafka-jmx.yaml"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks: [cdc-net]
+    restart: unless-stopped
+    healthcheck:
+      # KAFKA_OPTS= (vacio) evita que el JVM del healthcheck herede el -javaagent JMX y pelee por el puerto 7071
+      test: ["CMD-SHELL", "KAFKA_OPTS= /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:19092 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 15s
+      retries: 18
+      start_period: 20s
+
+  # ================= Kafka Connect + Debezium + JDBC sink =================
+  connect:
+    build:
+      context: .
+      dockerfile: images/connect/Dockerfile
+      args:
+        DEBEZIUM_CONNECT_IMAGE: ${DEBEZIUM_CONNECT_IMAGE}
+        CURL_IMAGE: ${CURL_IMAGE}
+        DBZ_JDBC_PLUGIN_VERSION: ${DBZ_JDBC_PLUGIN_VERSION}
+        JMX_EXPORTER_VERSION: ${JMX_EXPORTER_VERSION}
+    image: cdc-platform/connect:3.6.2
+    container_name: cdc-connect
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "${CONNECT_PORT:-8083}:8083"
+    environment:
+      BOOTSTRAP_SERVERS: kafka:19092
+      GROUP_ID: cdc-connect
+      CONFIG_STORAGE_TOPIC: _cdc_connect_configs
+      OFFSET_STORAGE_TOPIC: _cdc_connect_offsets
+      STATUS_STORAGE_TOPIC: _cdc_connect_status
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      REST_ADVERTISED_HOST_NAME: connect
+      OFFSET_FLUSH_INTERVAL_MS: "10000"
+      JAVA_TOOL_OPTIONS: "-javaagent:/opt/jmx/jmx_prometheus_javaagent.jar=7072:/opt/jmx/connect-jmx.yaml -Xms256m -Xmx768m"
+    volumes:
+      - ./secrets:/opt/connect-secrets:ro
+    <<: *host-gateway
+    networks: [cdc-net]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8083/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 24
+      start_period: 40s
+
+  # ================= Portal de Pipelines (FastAPI + HTMX) =================
+  portal:
+    build:
+      context: portal
+      dockerfile: Dockerfile
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE}
+    image: cdc-platform/portal:1.0
+    container_name: cdc-portal
+    depends_on:
+      connect:
+        condition: service_healthy
+    ports:
+      - "${PORTAL_PORT:-8085}:8085"
+    environment:
+      PORTAL_DB_PATH: /data/portal.db
+      SECRETS_DIR: /opt/connect-secrets
+      CONNECT_URL: http://connect:8083
+      CONNECT_METRICS_URL: http://connect:7072/metrics
+      KAFKA_BOOTSTRAP: kafka:19092
+      PROM_URL: http://prometheus:9090
+      GRAFANA_EXT_URL: ${GRAFANA_EXT_URL}
+      KAFBAT_EXT_URL: ${KAFBAT_EXT_URL}
+      CONNECT_EXT_URL: ${CONNECT_EXT_URL}
+      PROM_EXT_URL: ${PROM_EXT_URL}
+      ALERTMANAGER_EXT_URL: http://localhost:${ALERTMANAGER_PORT:-9093}
+      # BDs del host (para preflight y checks del sistema)
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT}
+      PG_HOST: ${PG_HOST}
+      PG_PORT: ${PG_PORT}
+      PG_TARGET_DB: ${PG_TARGET_DB}
+      MYSQL_CDC_USER: ${MYSQL_CDC_USER}
+      PG_CDC_ROLE: ${PG_CDC_ROLE}
+      CDC_TOPIC_PREFIX: ${CDC_TOPIC_PREFIX}
+      CDC_SOURCE_DB: ${CDC_SOURCE_DB}
+      MYSQL_SOURCE_SERVER_ID: ${MYSQL_SOURCE_SERVER_ID}
+    volumes:
+      - portal-data:/data
+      - ./secrets:/opt/connect-secrets
+    <<: *host-gateway
+    networks: [cdc-net]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8085/healthz',timeout=3)\" || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 15s
+
+  # ================= Kafbat UI (operacion de Kafka) =================
+  kafbat:
+    image: ${KAFBAT_IMAGE}
+    container_name: cdc-kafbat
+    depends_on:
+      kafka:
+        condition: service_healthy
+      connect:
+        condition: service_healthy
+    ports:
+      - "${KAFBAT_PORT:-8080}:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: cdc-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: cdc-connect
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://connect:8083
+      DYNAMIC_CONFIG_ENABLED: "true"
+      JAVA_OPTS: "-Xmx512m"
+    networks: [cdc-net]
+    restart: unless-stopped
+
+  # ================= Tester (pytest E2E, perfil tools) =================
+  tester:
+    build:
+      context: images/tester
+      dockerfile: Dockerfile
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE}
+    image: cdc-platform/tester:1.0
+    container_name: cdc-tester
+    profiles: ["tools"]
+    depends_on:
+      connect:
+        condition: service_healthy
+    environment:
+      TEST_MYSQL_HOST: ${MYSQL_HOST}
+      TEST_MYSQL_PORT: ${MYSQL_PORT}
+      TEST_MYSQL_APP_USER: ${MYSQL_APP_USER}
+      TEST_MYSQL_APP_PASSWORD: ${MYSQL_APP_PASSWORD}
+      TEST_MYSQL_CDC_USER: ${MYSQL_CDC_USER}
+      TEST_MYSQL_CDC_PASSWORD: ${MYSQL_CDC_PASSWORD}
+      TEST_MYSQL_SOURCE_DB: ${CDC_SOURCE_DB}
+      TEST_PG_HOST: ${PG_HOST}
+      TEST_PG_PORT: ${PG_PORT}
+      TEST_PG_DB: ${PG_TARGET_DB}
+      TEST_PG_USER: ${PG_CDC_ROLE}
+      TEST_PG_PASSWORD: ${PG_CDC_PASSWORD}
+      TEST_TOPIC_PREFIX: ${CDC_TOPIC_PREFIX}
+      PORTAL_URL: http://portal:8085
+      CONNECT_URL: http://connect:8083
+    volumes:
+      - ./tests:/tests:ro
+    <<: *host-gateway
+    networks: [cdc-net]
+    command: ["pytest", "-v", "--tb=short", "/tests"]

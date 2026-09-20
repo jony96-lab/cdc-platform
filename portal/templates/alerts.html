@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Alertas · CDC Platform{% endblock %}
+{% block content %}
+<h1>Alertas</h1>
+<p class="sub">Recibidas desde Alertmanager (webhook). Activas: <strong>{{ active }}</strong></p>
+
+{% if alerts %}
+<table class="grid">
+  <thead><tr><th>Estado</th><th>Alerta</th><th>Severidad</th><th>Resumen</th><th>Inicia</th><th>Termina</th></tr></thead>
+  <tbody>
+  {% for a in alerts %}
+    <tr class="{{ 'row-fail' if a.status == 'firing' else '' }}">
+      <td><span class="state {{ 'state-failed' if a.status == 'firing' else 'state-running' }}">
+        {{ a.status }}</span></td>
+      <td class="mono">{{ a.alertname }}</td>
+      <td>{{ a.severity }}</td>
+      <td>{{ a.summary }}<br><small>{{ a.description }}</small></td>
+      <td class="mono"><small>{{ a.starts_at[:19] }}</small></td>
+      <td class="mono"><small>{{ a.ends_at[:19] if a.ends_at else '—' }}</small></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">Sin alertas registradas todavía. Cuando Alertmanager dispare algo, aparecerá aquí.</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,130 @@
+﻿# Reglas JMX -> Prometheus para Kafka Connect + Debezium (worker y conectores)
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+
+whitelistObjectNames:
+  - kafka.connect:type=connect-worker-metrics,*
+  - kafka.connect:type=connect-worker-rebalance-metrics,*
+  - kafka.connect:type=connector-metrics,*
+  - kafka.connect:type=connector-task-metrics,*
+  - kafka.connect:type=task-error-metrics,*
+  - kafka.connect:type=sink-record-conversion-*
+  - kafka.consumer:type=consumer-fetch-manager-metrics,*
+  - kafka.producer:type=producer-metrics,*
+  - debezium.mysql:type=connector-metrics,*
+  - debezium.postgres:type=connector-metrics,*
+  - debezium.sql_server:type=connector-metrics,*
+  - java.lang:type=Memory
+  - java.lang:type=GarbageCollector
+  - java.lang:type=Threading
+
+rules:
+  # ---- Worker Connect ----
+  - pattern: "kafka.connect<type=connect-worker-metrics, connector=(.+)><>(connector-total-task-count|connector-running-task-count|connector-paused-task-count|connector-failed-task-count)"
+    name: kafka_connect_worker_$2
+    type: GAUGE
+    labels:
+      connector: "$1"
+  - pattern: "kafka.connect<type=connect-worker-metrics><>([\\w-]+)"
+    name: kafka_connect_worker_$1
+    type: GAUGE
+  - pattern: "kafka.connect<type=connect-worker-rebalance-metrics><>([\\w-]+)"
+    name: kafka_connect_worker_rebalance_$1
+    type: GAUGE
+
+  # ---- Tareas: errores, fallos, ratios ----
+  - pattern: "kafka.connect<type=connector-task-metrics, connector=(.+), task=(.+)><>([\\w-]+)"
+    name: kafka_connect_task_$3
+    type: GAUGE
+    labels:
+      connector: "$1"
+      task: "$2"
+  - pattern: "kafka.connect<type=task-error-metrics, connector=(.+), task=(.+)><>([\\w-]+)"
+    name: kafka_connect_task_error_$3
+    type: COUNTER
+    labels:
+      connector: "$1"
+      task: "$2"
+
+  # ---- Consumers de las tasks del sink (lag y consumo) ----
+  - pattern: "kafka.consumer<type=consumer-fetch-manager-metrics, client-id=(.+), topic=(.+), partition=(.+)><>(records-lag-max|records-lag|records-consumed-rate|records-consumed-total)"
+    name: kafka_consumer_fetch_$4
+    type: GAUGE
+    labels:
+      client_id: "$1"
+      topic: "$2"
+      partition: "$3"
+  - pattern: "kafka.consumer<type=consumer-fetch-manager-metrics, client-id=(.+), topic=(.+)><>(records-consumed-rate|records-consumed-total)"
+    name: kafka_consumer_fetch_$3
+    type: GAUGE
+    labels:
+      client_id: "$1"
+      topic: "$2"
+  - pattern: "kafka.consumer<type=consumer-fetch-manager-metrics, client-id=(.+)><>(records-lag-max|commit-rate|commit-total)"
+    name: kafka_consumer_fetch_$2
+    type: GAUGE
+    labels:
+      client_id: "$1"
+
+  # ---- Producer del source (eventos publicados) ----
+  - pattern: "kafka.producer<type=producer-metrics, client-id=(.+)><>(record-send-rate|record-send-total|record-error-rate|record-error-total|request-latency-avg|outgoing-byte-rate)"
+    name: kafka_producer_$2
+    type: GAUGE
+    labels:
+      client_id: "$1"
+
+  # ---- Debezium MySQL ----
+  - pattern: "debezium.mysql<type=connector-metrics, context=streaming, server=(.+), task=(.+)><>([\\w-]+)"
+    name: debezium_mysql_streaming_$3
+    type: GAUGE
+    labels:
+      server: "$1"
+      task: "$2"
+  - pattern: "debezium.mysql<type=connector-metrics, context=streaming, server=(.+)><>([\\w-]+)"
+    name: debezium_mysql_streaming_$2
+    type: GAUGE
+    labels:
+      server: "$1"
+  - pattern: "debezium.mysql<type=connector-metrics, context=snapshot, server=(.+), task=(.+)><>([\\w-]+)"
+    name: debezium_mysql_snapshot_$3
+    type: GAUGE
+    labels:
+      server: "$1"
+      task: "$2"
+  - pattern: "debezium.mysql<type=connector-metrics, context=snapshot, server=(.+)><>([\\w-]+)"
+    name: debezium_mysql_snapshot_$2
+    type: GAUGE
+    labels:
+      server: "$1"
+
+  # ---- Debezium PostgreSQL ----
+  - pattern: "debezium.postgres<type=connector-metrics, context=streaming, server=(.+), task=(.+)><>([\\w-]+)"
+    name: debezium_postgres_streaming_$3
+    type: GAUGE
+    labels:
+      server: "$1"
+      task: "$2"
+  - pattern: "debezium.postgres<type=connector-metrics, context=streaming, server=(.+)><>([\\w-]+)"
+    name: debezium_postgres_streaming_$2
+    type: GAUGE
+    labels:
+      server: "$1"
+  - pattern: "debezium.postgres<type=connector-metrics, context=snapshot, server=(.+), task=(.+)><>([\\w-]+)"
+    name: debezium_postgres_snapshot_$3
+    type: GAUGE
+    labels:
+      server: "$1"
+      task: "$2"
+
+  # ---- JVM ----
+  - pattern: "java.lang<type=Memory><HeapMemoryUsage>(\\w+)"
+    name: java_lang_memory_heap_memory_usage_$1
+    type: GAUGE
+  - pattern: "java.lang<type=GarbageCollector, name=(.+)><>CollectionCount"
+    name: java_lang_gc_collection_count
+    type: COUNTER
+    labels:
+      gc: "$1"
+  - pattern: "java.lang<type=Threading><>(ThreadCount)"
+    name: java_lang_threading_$1
+    type: GAUGE

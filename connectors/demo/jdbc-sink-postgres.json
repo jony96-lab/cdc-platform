@@ -1,0 +1,20 @@
+{
+  "name": "demo-jdbc-sink-postgres",
+  "config": {
+    "connector.class": "io.debezium.connector.jdbc.JdbcSinkConnector",
+    "tasks.max": "1",
+    "topics.regex": "cdcdemo\\..*",
+    "connection.url": "jdbc:postgresql://postgres-demo:5432/{{PG_TARGET_DB}}",
+    "connection.username": "{{PG_CDC_ROLE}}",
+    "connection.password": "${file:/opt/connect-secrets/default.properties:pg_cdc_password}",
+    "insert.mode": "upsert",
+    "delete.enabled": "true",
+    "primary.key.mode": "record_key",
+    "schema.evolution": "basic",
+    "errors.tolerance": "all",
+    "errors.log.enable": "true",
+    "errors.deadletterqueue.topic.name": "_cdc_demo_dlq_sink",
+    "errors.deadletterqueue.topic.replication.factor": "1",
+    "errors.deadletterqueue.context.headers.enable": "true"
+  }
+}

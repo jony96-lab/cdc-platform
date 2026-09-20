@@ -1,0 +1,76 @@
+# Reglas JMX -> Prometheus para el broker Kafka (KRaft single-node)
+# Metricas enfocadas en lo operativo: throughput, particiones, controller, JVM.
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+
+whitelistObjectNames:
+  - kafka.server:type=BrokerTopicMetrics,name=*
+  - kafka.server:type=ReplicaManager,name=*
+  - kafka.controller:type=KafkaController,name=*
+  - kafka.controller:type=ControllerStats,name=*
+  - kafka.network:type=RequestMetrics,name=*,request=*
+  - kafka.server:type=BrokerTopicMetrics,name=TotalTopicFails
+  - kafka.log:type=Log,name=Size,topic=*,partition=*
+  - kafka.log:type=Log,name=LogEndOffset,topic=*,partition=*
+  - java.lang:type=Memory
+  - java.lang:type=GarbageCollector
+  - java.lang:type=Threading
+
+blacklistObjectNames:
+  - kafka.server:type=BrokerTopicMetrics,name=*,topic=__consumer_offsets
+  - java.lang:type=Memory,*
+
+rules:
+  - pattern: "kafka.server<type=BrokerTopicMetrics, name=(.+), topic=(.+)><>(Count|OneMinuteRate|MeanRate)"
+    name: kafka_server_broker_topic_metrics_$1_$3
+    type: GAUGE
+    labels:
+      topic: "$2"
+  - pattern: "kafka.server<type=BrokerTopicMetrics, name=(.+)><>(Count|OneMinuteRate|MeanRate)"
+    name: kafka_server_broker_topic_metrics_$1_$2
+    type: GAUGE
+  - pattern: "kafka.server<type=ReplicaManager, name=(.+)><>Value"
+    name: kafka_server_replica_manager_$1
+    type: GAUGE
+  - pattern: "kafka.controller<type=KafkaController, name=(.+)><>Value"
+    name: kafka_controller_$1
+    type: GAUGE
+  - pattern: "kafka.controller<type=ControllerStats, name=(.+)><>(Count|OneMinuteRate)"
+    name: kafka_controller_stats_$1_$2
+    type: GAUGE
+  - pattern: "kafka.network<type=RequestMetrics, name=(.+), request=(.+)><>(Count|OneMinuteRate|MeanRate|50thPercentile|99thPercentile)"
+    name: kafka_network_request_metrics_$1_$3
+    type: GAUGE
+    labels:
+      request: "$2"
+  - pattern: "kafka.log<type=Log, name=Size, topic=(.+), partition=(.+)><>Value"
+    name: kafka_log_size_bytes
+    type: GAUGE
+    labels:
+      topic: "$1"
+      partition: "$2"
+  - pattern: "kafka.log<type=Log, name=LogEndOffset, topic=(.+), partition=(.+)><>Value"
+    name: kafka_log_log_end_offset
+    type: GAUGE
+    labels:
+      topic: "$1"
+      partition: "$2"
+  - pattern: "java.lang<type=Memory><HeapMemoryUsage>(\\w+)"
+    name: java_lang_memory_heap_memory_usage_$1
+    type: GAUGE
+  - pattern: "java.lang<type=Memory><NonHeapMemoryUsage>(\\w+)"
+    name: java_lang_memory_non_heap_memory_usage_$1
+    type: GAUGE
+  - pattern: "java.lang<type=GarbageCollector, name=(.+)><>CollectionCount"
+    name: java_lang_gc_collection_count
+    type: COUNTER
+    labels:
+      gc: "$1"
+  - pattern: "java.lang<type=GarbageCollector, name=(.+)><>CollectionTime"
+    name: java_lang_gc_collection_time_ms
+    type: COUNTER
+    labels:
+      gc: "$1"
+  - pattern: "java.lang<type=Threading><>(ThreadCount|DaemonThreadCount|PeakThreadCount)"
+    name: java_lang_threading_$1
+    type: GAUGE

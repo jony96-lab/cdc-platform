@@ -1,0 +1,12 @@
+-- Init MySQL de demostracion (perfil demodb): usuarios CDC + schema inventory
+-- Renderizado por gen-secrets.ps1 (mismo contenido que las plantillas de host)
+
+CREATE USER IF NOT EXISTS '{{MYSQL_CDC_USER}}'@'%' IDENTIFIED BY '{{MYSQL_CDC_PASSWORD}}';
+GRANT SELECT, SHOW DATABASES, SHOW VIEW, RELOAD,
+      REPLICATION SLAVE, REPLICATION CLIENT, LOCK TABLES, PROCESS
+  ON *.* TO '{{MYSQL_CDC_USER}}'@'%';
+
+CREATE USER IF NOT EXISTS '{{MYSQL_APP_USER}}'@'%' IDENTIFIED BY '{{MYSQL_APP_PASSWORD}}';
+GRANT ALL PRIVILEGES ON `{{CDC_SOURCE_DB}}`.* TO '{{MYSQL_APP_USER}}'@'%';
+
+FLUSH PRIVILEGES;

@@ -1,0 +1,21 @@
+{
+  "name": "demo-mysql-source-inventory",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "tasks.max": "1",
+    "database.hostname": "mysql-demo",
+    "database.port": "3306",
+    "database.user": "{{MYSQL_CDC_USER}}",
+    "database.password": "${file:/opt/connect-secrets/default.properties:mysql_cdc_password}",
+    "database.server.id": "6401",
+    "database.include.list": "{{CDC_SOURCE_DB}}",
+    "topic.prefix": "cdcdemo",
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:19092",
+    "schema.history.internal.kafka.topic": "_cdc_demo_schema_history",
+    "snapshot.mode": "initial",
+    "include.schema.changes": "true",
+    "heartbeat.interval.ms": "10000",
+    "topic.creation.default.partitions": "3",
+    "topic.creation.default.replication.factor": "1"
+  }
+}

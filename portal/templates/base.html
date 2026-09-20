@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}CDC Platform{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/vendor/htmx.min.js"></script>
+</head>
+<body>
+  <nav class="topbar">
+    <div class="brand">⚡ CDC Platform</div>
+    <a href="/" class="nav-link">Pipelines</a>
+    <a href="/pipelines/new" class="nav-link">+ Nuevo pipeline</a>
+    <a href="/alerts" class="nav-link">Alertas
+      {% if nav_alerts > 0 %}<span class="badge badge-red">{{ nav_alerts }}</span>{% endif %}
+    </a>
+    <a href="/system" class="nav-link">Sistema</a>
+    <div class="nav-right">
+      <span class="conn-dot {{ 'ok' if connect_up else 'down' }}" title="Kafka Connect"></span>
+      <a href="{{ settings.grafana_ext_url }}" target="_blank" class="ext-link">Grafana ↗</a>
+      <a href="{{ settings.kafbat_ext_url }}" target="_blank" class="ext-link">Kafbat ↗</a>
+      <a href="{{ settings.connect_ext_url }}" target="_blank" class="ext-link">Connect REST ↗</a>
+    </div>
+  </nav>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

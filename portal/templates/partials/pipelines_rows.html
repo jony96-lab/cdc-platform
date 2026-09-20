@@ -1,0 +1,49 @@
+{% if not connect_up %}
+<div class="alert-box">⚠ Kafka Connect no responde. Revisa el contenedor <code>cdc-connect</code>.</div>
+{% endif %}
+
+{% if rows %}
+<table class="grid">
+  <thead>
+    <tr>
+      <th>Pipeline</th><th>Ruta</th><th>Source</th><th>Sink</th><th>Lag fuente</th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td><a href="/pipelines/{{ r.pipeline.id }}">{{ r.pipeline.name }}</a></td>
+      <td class="mono">{{ r.pipeline.source_engine }}:{{ r.pipeline.source_db }} → {{ r.pipeline.target_engine }}:{{ r.pipeline.target_db }}</td>
+      <td><span class="state state-{{ r.source_state | lower }}">{{ r.source_state }}</span></td>
+      <td><span class="state state-{{ r.sink_state | lower }}">{{ r.sink_state }}</span></td>
+      <td class="mono">{% if r.lag_ms is not none %}{{ '%.0f' | format(r.lag_ms) }} ms{% else %}—{% endif %}</td>
+      <td><a class="btn btn-small" href="/pipelines/{{ r.pipeline.id }}">detalle</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">
+  Todavía no hay pipelines registrados desde el portal.
+  <br>Los conectores registrados por script aparecen abajo como “no gestionados”.
+</div>
+{% endif %}
+
+{% if unmanaged %}
+<h3>Conectores no gestionados por el portal</h3>
+<table class="grid">
+  <thead><tr><th>Conector</th><th>Estado</th></tr></thead>
+  <tbody>
+  {% for u in unmanaged %}
+    <tr>
+      <td class="mono">{{ u.name }}</td>
+      <td><span class="state state-{{ u.state | lower }}">{{ u.state }}</span></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<p class="sub">Última consulta a Connect:
+  {% if last_poll %}{{ '%.0f' | format(last_poll) }} (epoch){% else %}pendiente{% endif %}
+</p>

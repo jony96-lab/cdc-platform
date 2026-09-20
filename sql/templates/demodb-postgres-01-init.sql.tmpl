@@ -1,0 +1,6 @@
+-- Init PostgreSQL de demostracion (perfil demodb): rol + base destino
+-- Se ejecuta como superusuario 'postgres' del contenedor.
+
+CREATE ROLE {{PG_CDC_ROLE}} LOGIN PASSWORD '{{PG_CDC_PASSWORD}}';
+GRANT pg_monitor TO {{PG_CDC_ROLE}};
+CREATE DATABASE {{PG_TARGET_DB}} OWNER {{PG_CDC_ROLE}};

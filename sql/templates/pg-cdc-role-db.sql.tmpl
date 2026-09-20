@@ -1,0 +1,24 @@
+-- ============================================================
+-- PostgreSQL destino: rol CDC + base cdc_target
+-- Template: {{VAR}} es sustituido por scripts/gen-secrets.ps1
+-- Idempotente (se ejecuta con psql, base 'postgres').
+-- ============================================================
+
+-- Rol (idempotente con \gexec)
+SELECT 'CREATE ROLE {{PG_CDC_ROLE}} LOGIN PASSWORD ''{{PG_CDC_PASSWORD}}'''
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{{PG_CDC_ROLE}}')\gexec
+
+-- Si el rol ya existia, asegurar password actualizado
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{{PG_CDC_ROLE}}') THEN
+    EXECUTE format('ALTER ROLE {{PG_CDC_ROLE}} LOGIN PASSWORD %L', '{{PG_CDC_PASSWORD}}');
+  END IF;
+END $$;
+
+-- Para el exporter (metricas pg_stat_*)
+GRANT pg_monitor TO {{PG_CDC_ROLE}};
+
+-- Base destino (no idempotente en SQL puro: el script PS verifica antes)
+SELECT 'CREATE DATABASE {{PG_TARGET_DB}} OWNER {{PG_CDC_ROLE}}'
+WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '{{PG_TARGET_DB}}')\gexec

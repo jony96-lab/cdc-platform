@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Sistema · CDC Platform{% endblock %}
+{% block content %}
+<h1>Estado del sistema</h1>
+
+<h2>Componentes</h2>
+<table class="grid">
+  <thead><tr><th></th><th>Componente</th><th>Detalle</th></tr></thead>
+  <tbody>
+  {% for label, ok, detail in comps %}
+    <tr class="{{ 'row-ok' if ok else 'row-fail' }}">
+      <td>{{ '✔' if ok else '✖' }}</td>
+      <td>{{ label }}</td>
+      <td class="mono">{{ detail }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% if plugins %}
+<h2>Plugins disponibles en Kafka Connect</h2>
+<ul class="mono plugins">
+  {% for pl in plugins %}<li>{{ pl }}</li>{% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

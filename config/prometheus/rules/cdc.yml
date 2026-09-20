@@ -1,0 +1,108 @@
+groups:
+
+  - name: cdc-pipeline
+    rules:
+
+      - alert: CdcConnectorDown
+        expr: cdc_connector_running == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Conector CDC {{ $labels.connector }} no está RUNNING"
+          description: "Estado no RUNNING hace más de 2 minutos (pipeline {{ $labels.pipeline }}). Revisa la traza en el Portal o en Kafbat → Connect."
+
+      - alert: CdcTaskFailed
+        expr: cdc_task_failed == 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Task {{ $labels.task }} de {{ $labels.connector }} en FAILED"
+          description: "La tarea falló y no se recuperó en 2 minutos. Portal → detalle del pipeline → trace."
+
+      - alert: CdcSourceLagHigh
+        expr: cdc_milli_seconds_behind_source > 60000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Lag de captura alto en {{ $labels.server }} (>60s por 10min)"
+          description: "El conector source va {{ $value | printf \"%.0f\" }} ms detrás del binlog/WAL. Posible cuello de botella en el sink o red."
+
+      - alert: CdcHeartbeatStalled
+        # Suma por topic: los heartbeats (key nula) caen en UNA sola particion (sticky),
+        # las particiones idle darian falsos positivos si se evaluan por separado.
+        expr: sum by (topic) (increase(kafka_log_log_end_offset{topic=~"__debezium-heartbeat.*"}[5m])) == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Heartbeats de Debezium detenidos (topic {{ $labels.topic }})"
+          description: "Sin nuevos offsets en el topic de heartbeat hace 5+ minutos. Si el pipeline está pausado a propósito, ignora esta alerta; si no, el conector source puede estar colgado."
+
+      - alert: CdcSinkErrors
+        expr: increase(kafka_connect_task_error_total_record_errors_total[5m]) > 0 or increase(kafka_connect_task_error_deadletterqueue_produce_requests_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Errores/registros en DLQ del sink {{ $labels.connector }}"
+          description: "{{ $value | printf \"%.0f\" }} errores en 5 min. Con errors.tolerance=all los registros fallidos van al DLQ (_cdc_dlq_*). Revísalos en Kafbat."
+
+  - name: cdc-infra
+    rules:
+
+      - alert: KafkaBrokerDown
+        expr: up{job="kafka"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Broker Kafka caído"
+          description: "El JMX exporter del broker no responde. Todo el pipeline está detenido."
+
+      - alert: ConnectWorkerDown
+        expr: up{job="connect-jmx"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Worker Kafka Connect caído"
+          description: "Sin worker no hay CDC activo. Revisa logs: scripts/logs.ps1 connect"
+
+      - alert: MysqlSourceDown
+        expr: mysql_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MySQL fuente no alcanzable"
+          description: "mysqld-exporter no puede conectar al MySQL del host. ¿Servicio MySQL80 caído o firewall?"
+
+      - alert: PostgresTargetDown
+        expr: pg_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL destino no alcanzable"
+          description: "postgres-exporter no puede conectar al Postgres del host. ¿Servicio PostgreSQL_Data_D caído o firewall?"
+
+      - alert: PortalDown
+        expr: up{job="portal"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Portal de Pipelines caído"
+          description: "La UI de administración no responde (el pipeline sigue corriendo, solo se perdió visibilidad/alertas vía webhook)."
+
+      - alert: KafkaDiskGrowingFast
+        expr: sum(kafka_log_size_bytes) > 5e9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Logs de Kafka superan 5 GB"
+          description: "Revisa retención de topics (topic.creation.default.retention.ms) y compactación de _cdc_connect_* / schema history."

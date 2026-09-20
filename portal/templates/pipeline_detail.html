@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}{{ p.name }} · CDC Platform{% endblock %}
+{% block content %}
+<h1>{{ p.name }}</h1>
+<p class="sub mono">{{ p.source_engine }}://{{ p.source_user }}@{{ p.source_host }}:{{ p.source_port }}/{{ p.source_db }}
+  → {{ p.target_engine }}://{{ p.target_user }}@{{ p.target_host }}:{{ p.target_port }}/{{ p.target_db }}</p>
+
+<div class="actions-top">
+  <form method="post" action="/pipelines/{{ p.id }}/action/pause" class="inline"><button class="btn">⏸ Pausar</button></form>
+  <form method="post" action="/pipelines/{{ p.id }}/action/resume" class="inline"><button class="btn">▶ Reanudar</button></form>
+  <form method="post" action="/pipelines/{{ p.id }}/action/restart" class="inline"><button class="btn">↻ Reiniciar</button></form>
+  <form method="post" action="/pipelines/{{ p.id }}/action/delete" class="inline"
+        onsubmit="return confirm('¿Borrar el pipeline y sus conectores? (las tablas destino NO se borran)')">
+    <button class="btn btn-danger">🗑 Eliminar</button>
+  </form>
+  <a class="btn" href="{{ settings.kafbat_ext_url }}" target="_blank">Ver topics en Kafbat ↗</a>
+</div>
+
+{% for key in ['source', 'sink'] %}
+  <h2>{{ 'Conector source' if key == 'source' else 'Conector sink' }}:
+    <span class="mono">{{ p.source_connector if key == 'source' else p.sink_connector }}</span></h2>
+  {% set d = detail[key] %}
+  {% if d.error %}
+    <div class="alert-box">Error consultando Connect: {{ d.error }}</div>
+  {% else %}
+    {% set st = d.status %}
+    <p>
+      Conector: <span class="state state-{{ st.connector.state | lower }}">{{ st.connector.state }}</span>
+      {% if st.connector.trace %}<pre class="trace">{{ st.connector.trace }}</pre>{% endif %}
+    </p>
+    <table class="grid">
+      <thead><tr><th>Task</th><th>Worker</th><th>Estado</th><th>Trace</th></tr></thead>
+      <tbody>
+      {% for t in st.tasks %}
+        <tr>
+          <td>{{ t.id }}</td>
+          <td class="mono">{{ t.worker_id }}</td>
+          <td><span class="state state-{{ t.state | lower }}">{{ t.state }}</span></td>
+          <td>{% if t.trace %}<pre class="trace">{{ t.trace[:600] }}</pre>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <details>
+      <summary>Configuración (las contraseñas viven en el secrets file, nunca aquí)</summary>
+      <pre class="trace">{{ d.config.config | tojson(indent=2) }}</pre>
+    </details>
+    {% if d.topics %}
+    <details open>
+      <summary>Topics ({{ d.topics | length }})</summary>
+      <ul class="mono">{% for t in d.topics %}<li>{{ t }}</li>{% endfor %}</ul>
+    </details>
+    {% endif %}
+  {% endif %}
+{% endfor %}
+
+<h2>Metadatos</h2>
+<table class="grid kv">
+  <tbody>
+    <tr><td>Topic prefix</td><td class="mono">{{ p.topic_prefix }}</td></tr>
+    <tr><td>Tablas incluidas</td><td class="mono">{{ p.source_tables or '(todas)' }}</td></tr>
+    <tr><td>Secrets file</td><td class="mono">/opt/connect-secrets/{{ p.secrets_file }}</td></tr>
+    <tr><td>Creado</td><td class="mono">{{ '%.0f' | format(p.created_at) }} (epoch)</td></tr>
+  </tbody>
+</table>
+<p><a href="/">← Volver</a></p>
+{% endblock %}

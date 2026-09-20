@@ -1,0 +1,41 @@
+# ==============================================================
+# Overlay de scale-out: segundo worker de Kafka Connect.
+# Demuestra el modo distribuido: los conectores/tasks se
+# rebalancean automaticamente entre workers del mismo GROUP_ID.
+# Uso: scripts/scale-out.ps1  |  scripts/scale-in.ps1
+# ==============================================================
+
+services:
+
+  connect-worker2:
+    image: cdc-platform/connect:3.6.2
+    pull_policy: never
+    container_name: cdc-connect-worker2
+    depends_on:
+      connect:
+        condition: service_healthy
+    ports:
+      - "8084:8083"
+    environment:
+      BOOTSTRAP_SERVERS: kafka:19092
+      GROUP_ID: cdc-connect            # mismo grupo => cluster distribuido
+      CONFIG_STORAGE_TOPIC: _cdc_connect_configs
+      OFFSET_STORAGE_TOPIC: _cdc_connect_offsets
+      STATUS_STORAGE_TOPIC: _cdc_connect_status
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      REST_ADVERTISED_HOST_NAME: connect-worker2
+      OFFSET_FLUSH_INTERVAL_MS: "10000"
+      JAVA_TOOL_OPTIONS: "-javaagent:/opt/jmx/jmx_prometheus_javaagent.jar=7072:/opt/jmx/connect-jmx.yaml -Xms256m -Xmx768m"
+    volumes:
+      - ./secrets:/opt/connect-secrets:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks: [cdc-net]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8083/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 24
+      start_period: 40s

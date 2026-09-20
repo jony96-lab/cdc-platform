@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Pipelines · CDC Platform{% endblock %}
+{% block content %}
+<h1>Pipelines CDC</h1>
+<p class="sub">Estado en vivo desde Kafka Connect (refresco automático cada 10 s).</p>
+<div id="pipelines"
+     hx-get="/partials/pipelines" hx-trigger="load, every 10s" hx-swap="innerHTML">
+  <p class="loading">Cargando estado…</p>
+</div>
+<div class="actions-top">
+  <a class="btn btn-primary" href="/pipelines/new">+ Registrar nuevo pipeline</a>
+</div>
+{% endblock %}

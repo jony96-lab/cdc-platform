@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Nuevo pipeline · CDC Platform{% endblock %}
+{% block content %}
+<h1>Registrar nuevo pipeline CDC</h1>
+<p class="sub">Asistente guiado: completa origen y destino, ejecuta el pre-flight y crea los conectores
+  (Debezium source + JDBC sink) sin tocar la línea de comandos.</p>
+
+<form id="wizard" hx-post="/pipelines/preflight" hx-target="#preflight-result" hx-swap="innerHTML">
+  <fieldset>
+    <legend>1 · Origen (change data capture)</legend>
+    <div class="form-grid">
+      <label>Nombre del pipeline
+        <input name="name" required placeholder="ej. ventas-mysql-a-postgres">
+      </label>
+      <label>Motor
+        <select name="source_engine" id="source_engine" required>
+          <option value="mysql" selected>MySQL</option>
+          <option value="postgres">PostgreSQL</option>
+          <option value="sqlserver">SQL Server</option>
+        </select>
+      </label>
+      <label>Host
+        <input name="source_host" value="{{ defaults.mysql_host }}" required>
+      </label>
+      <label>Puerto
+        <input name="source_port" type="number" id="source_port" value="{{ defaults.mysql_port }}" required>
+      </label>
+      <label>Base de datos
+        <input name="source_db" value="inventory" required>
+      </label>
+      <label>Usuario
+        <input name="source_user" required placeholder="cdc_user">
+      </label>
+      <label>Password
+        <input name="source_password" type="password" required>
+      </label>
+      <label>Tablas (vacío = todas)
+        <input name="source_tables" placeholder="inventory.customers, inventory.orders">
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>2 · Destino (espejo exacto: upsert + deletes)</legend>
+    <div class="form-grid">
+      <label>Motor
+        <select name="target_engine" id="target_engine" required>
+          <option value="postgres" selected>PostgreSQL</option>
+          <option value="mysql">MySQL</option>
+          <option value="sqlserver">SQL Server</option>
+        </select>
+      </label>
+      <label>Host
+        <input name="target_host" value="{{ defaults.pg_host }}" required>
+      </label>
+      <label>Puerto
+        <input name="target_port" type="number" id="target_port" value="{{ defaults.pg_port }}" required>
+      </label>
+      <label>Base de datos
+        <input name="target_db" value="{{ defaults.pg_target_db }}" required>
+      </label>
+      <label>Usuario
+        <input name="target_user" required placeholder="cdc_role">
+      </label>
+      <label>Password
+        <input name="target_password" type="password" required>
+      </label>
+    </div>
+    <p class="hint">Las tablas destino se crean/evolucionan automáticamente
+      (<code>schema.evolution=basic</code>) con el nombre
+      <code>&lt;prefijo&gt;_&lt;bd&gt;_&lt;tabla&gt;</code>.</p>
+  </fieldset>
+
+  <div class="actions-top">
+    <button type="submit" class="btn">▶ Ejecutar pre-flight</button>
+  </div>
+</form>
+
+<div id="preflight-result"></div>
+
+<form id="create-form" method="post" action="/pipelines" class="hidden-form"></form>
+
+<script>
+  // Sincroniza puertos por defecto al cambiar de motor
+  const ports = { mysql: {{ defaults.mysql_port }}, postgres: {{ defaults.pg_port }}, sqlserver: 1433 };
+  document.getElementById('source_engine').addEventListener('change', e => {
+    document.getElementById('source_port').value = ports[e.target.value] || 3306;
+  });
+  document.getElementById('target_engine').addEventListener('change', e => {
+    document.getElementById('target_port').value = ports[e.target.value] || 5432;
+  });
+  // Al pasar el pre-flight (partial con #preflight-ok) se habilita el boton de creacion.
+  // HTMX no ejecuta <script> del partial: reaccionamos al evento afterSwap.
+  document.body.addEventListener('htmx:afterSwap', function (evt) {
+    if (evt.detail.target && evt.detail.target.id === 'preflight-result'
+        && document.getElementById('preflight-ok')) {
+      enableCreate();
+    }
+  });
+  function enableCreate() {
+    const src = document.getElementById('wizard');
+    const dst = document.getElementById('create-form');
+    dst.innerHTML = '';
+    src.querySelectorAll('input, select').forEach(el => {
+      if (!el.name) return;
+      const c = el.cloneNode(true);
+      c.value = el.value;   // copiar el valor actual tipeado (no el atributo inicial)
+      dst.appendChild(c);
+    });
+    const wrap = document.getElementById('create-wrap');
+    if (wrap) wrap.classList.remove('hidden-form');
+  }
+</script>
+
+<div id="create-wrap" class="hidden-form actions-top">
+  <button class="btn btn-primary" form="create-form" type="submit">
+    🚀 Crear pipeline (source + sink)
+  </button>
+</div>
+{% endblock %}

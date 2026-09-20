@@ -1,0 +1,73 @@
+# ==============================================================
+# Overlay de BDs de demostracion (perfil "demodb")
+# Para levantar el stack 100% autocontenido sin tocar BDs del host:
+#   scripts/up.ps1 -WithDemoDb
+#   scripts/register-connectors.ps1 -Demo
+# Las init SQL se renderizan desde sql/templates con gen-secrets.ps1
+# hacia build/demodb-init/ (gitignored).
+# ==============================================================
+
+services:
+
+  mysql-demo:
+    image: mysql:8.4
+    container_name: cdc-mysql-demo
+    profiles: ["demodb"]
+    command:
+      - --server-id=223344
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --binlog-row-image=FULL
+      - --binlog-expire-logs-seconds=259200
+      - --max-binlog-size=104857600
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DEMO_DB_ROOT_PASSWORD}
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./build/demodb-init/mysql:/docker-entrypoint-initdb.d:ro
+      - mysql-demo-data:/var/lib/mysql
+    networks: [cdc-net]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DEMO_DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  postgres-demo:
+    image: postgres:17
+    container_name: cdc-postgres-demo
+    profiles: ["demodb"]
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=10
+      - -c
+      - max_wal_senders=10
+    environment:
+      POSTGRES_PASSWORD: ${DEMO_DB_ROOT_PASSWORD}
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./build/demodb-init/postgres:/docker-entrypoint-initdb.d:ro
+      - postgres-demo-data:/var/lib/postgresql/data
+    networks: [cdc-net]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+volumes:
+  mysql-demo-data:
+    name: cdc-mysql-demo-data
+  postgres-demo-data:
+    name: cdc-postgres-demo-data
