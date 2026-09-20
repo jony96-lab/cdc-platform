@@ -1,0 +1,31 @@
+# ==============================================================
+# Alertmanager - template renderizado por scripts/gen-secrets.ps1
+# hacia build/alertmanager/alertmanager.yml (credenciales fuera de git)
+#
+# Politica de envio:
+#   critical -> email INMEDIATO (group_wait=0s, repeat 4h) + webhook Portal
+#   warning  -> email AGRUPADO  (group_wait=10m, group_interval=1h) + webhook Portal
+#   default  -> solo webhook Portal (historial en http://localhost:8085/alerts)
+# ==============================================================
+
+{{EMAIL_GLOBAL_BLOCK}}
+route:
+  receiver: default-portal
+  group_by: ["alertname", "severity"]
+  group_wait: 10s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+{{EMAIL_ROUTES_BLOCK}}
+
+receivers:
+  - name: default-portal
+    webhook_configs:
+      - url: http://portal:8085/alerts/webhook
+        send_resolved: true
+  {{EMAIL_RECEIVERS_BLOCK}}
+
+inhibit_rules:
+  # Si la infra base esta caida, silenciar alertas derivadas del pipeline
+  - source_matchers: [ 'alertname = "ConnectWorkerDown"' ]
+    target_matchers: [ 'severity = "warning"' ]

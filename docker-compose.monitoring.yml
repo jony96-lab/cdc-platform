@@ -59,7 +59,9 @@ services:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
     volumes:
-      - ./config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      # Montaje por DIRECTORIO: el script regenera el yml (borra+recrea el archivo)
+      # y el contenedor siempre ve la version nueva en restart
+      - ./build/alertmanager:/etc/alertmanager:ro
       - alertmanager-data:/alertmanager
     networks: [cdc-net]
     restart: unless-stopped
