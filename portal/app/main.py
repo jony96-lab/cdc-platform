@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-from . import db, metrics, preflight
+from . import db, metrics, notif, preflight
 from .config import settings
 from .connect_client import ConnectClient
 from .pipeline_factory import deploy_pipeline, slugify
@@ -27,6 +27,7 @@ templates = Jinja2Templates(directory="templates")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
+    notif.init_db()
     client = ConnectClient(settings.connect_url)
     app.state.client = client
     task = asyncio.create_task(metrics.poller_loop(client))
@@ -284,6 +285,64 @@ async def alerts_webhook(request: Request):
 async def alerts_page(request: Request):
     return templates.TemplateResponse(request, "alerts.html", _ctx(
         request, alerts=db.list_alerts(), active=db.count_active_alerts()))
+
+
+# ============================ Notificaciones ============================
+
+@app.get("/notifications", response_class=HTMLResponse)
+async def notifications_page(request: Request):
+    qp = request.query_params
+    return templates.TemplateResponse(request, "notifications.html", _ctx(
+        request, cfg=notif.get_config(),
+        saved=qp.get("saved"), tested=qp.get("tested"), error=qp.get("error")))
+
+
+@app.post("/notifications/save")
+async def notifications_save(
+    request: Request,
+    enabled: str = Form("off"),
+    smtp_host: str = Form(""), smtp_port: int = Form(587),
+    smtp_tls: str = Form("off"), smtp_user: str = Form(""),
+    smtp_password: str = Form(""), smtp_from: str = Form(""),
+    alert_to: str = Form(""),
+):
+    data = {
+        "enabled": enabled == "on", "smtp_host": smtp_host.strip(),
+        "smtp_port": smtp_port, "smtp_tls": smtp_tls == "on",
+        "smtp_user": smtp_user.strip(), "smtp_password": smtp_password,
+        "smtp_from": smtp_from.strip(), "alert_to": alert_to.strip(),
+    }
+    if data["enabled"]:
+        existing = notif.get_config()
+        # En el primer alta la password es obligatoria; en ediciones puede ir
+        # vacia (se conserva la ya guardada en SQLite)
+        required = [("smtp_host", data["smtp_host"]), ("smtp_user", data["smtp_user"]),
+                    ("smtp_from", data["smtp_from"]), ("alert_to", data["alert_to"])]
+        if not existing:
+            required.append(("smtp_password", data["smtp_password"]))
+        missing = [k for k, v in required if not v]
+        if missing:
+            return RedirectResponse(
+                url=f"/notifications?error=Faltan campos obligatorios: {', '.join(missing)}",
+                status_code=303)
+    result = notif.apply_config(data)
+    if result["reload_ok"]:
+        return RedirectResponse(url="/notifications?saved=1", status_code=303)
+    return RedirectResponse(url=f"/notifications?error={result['reload_error']}", status_code=303)
+
+
+@app.post("/notifications/test")
+async def notifications_test(request: Request):
+    if not notif.get_config():
+        return RedirectResponse(
+            url="/notifications?error=Primero guardá la configuración del canal",
+            status_code=303)
+    r = notif.send_test_alert()
+    if r["ok"]:
+        return RedirectResponse(url="/notifications?tested=1", status_code=303)
+    return RedirectResponse(
+        url=f"/notifications?error=Alertmanager respondió HTTP {r['status']}",
+        status_code=303)
 
 
 # ============================ Sistema ============================

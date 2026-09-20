@@ -1,0 +1,5 @@
+<div class="alert-box {{ 'ok' if ok else '' }}">{{ '✔' if ok else '✖' }} {{ msg }}</div>
+<script>
+  // recargar la pagina unos segundos despues para mostrar el estado actualizado
+  setTimeout(function(){ location.href = '/notifications'; }, 6000);
+</script>

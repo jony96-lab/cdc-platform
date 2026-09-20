@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Notificaciones · CDC Platform{% endblock %}
+{% block content %}
+<h1>Notificaciones por email</h1>
+<p class="sub">Configurá a quién avisamos cuando algo anda mal. Presets: Gmail,
+  Outlook/Microsoft 365 o cualquier SMTP corporativo.</p>
+
+{% if saved %}<div class="alert-box ok">✔ Configuración guardada y aplicada a Alertmanager.</div>{% endif %}
+{% if tested %}<div class="alert-box ok">📨 Notificación de prueba enviada. Revisá la bandeja (y el spam la primera vez). La alerta de prueba expira sola en minutos.</div>{% endif %}
+{% if error %}<div class="alert-box">✖ {{ error }}</div>{% endif %}
+
+<form method="post" action="/notifications/save" id="notif-form">
+  <fieldset>
+    <legend>Canal Email</legend>
+    <div class="form-grid">
+      <label class="chk">
+        <input type="checkbox" name="enabled" id="enabled" {{ 'checked' if cfg and cfg.enabled else '' }}>
+        Enviar alertas por email
+      </label>
+      <label>Preset
+        <select id="preset">
+          <option value="">— elegir proveedor —</option>
+          <option value="gmail">Gmail</option>
+          <option value="outlook">Outlook / Microsoft 365</option>
+        </select>
+      </label>
+    </div>
+    <div class="form-grid">
+      <label>Servidor SMTP
+        <input name="smtp_host" value="{{ cfg.smtp_host if cfg else '' }}" placeholder="smtp.gmail.com">
+      </label>
+      <label>Puerto
+        <input name="smtp_port" type="number" value="{{ cfg.smtp_port if cfg else 587 }}">
+      </label>
+      <label class="chk">
+        <input type="checkbox" name="smtp_tls" {{ 'checked' if (cfg and cfg.smtp_tls) or not cfg else '' }}>
+        Usar TLS (STARTTLS)
+      </label>
+      <label>Usuario SMTP
+        <input name="smtp_user" value="{{ cfg.smtp_user if cfg else '' }}" placeholder="tu-correo@gmail.com">
+      </label>
+      <label>Password / App-password
+        <input name="smtp_password" type="password" placeholder="{{ 'dejar vacío para conservar la guardada' if cfg else 'app-password de 16 caracteres' }}">
+      </label>
+      <label>De (From)
+        <input name="smtp_from" value="{{ cfg.smtp_from if cfg else '' }}" placeholder="cdc-alertas@gmail.com">
+      </label>
+      <label>Destinatarios (coma)
+        <input name="alert_to" value="{{ cfg.alert_to if cfg else '' }}" placeholder="oncall@empresa.com,backup@empresa.com">
+      </label>
+    </div>
+    <p class="hint">
+      <strong>Gmail</strong>: activá verificación en 2 pasos y generá un app-password en
+      myaccount.google.com/apppasswords (la password normal no sirve).
+      <strong>Outlook/M365</strong>: smtp.office365.com:587 con la password de la cuenta
+      (M365 puede exigir habilitar SMTP AUTH en el tenant).
+    </p>
+    <p class="hint">Política: <strong>critical</strong> llega inmediato ·
+      <strong>warning</strong> se agrupa (resumen cada 1h) · las resoluciones también se
+      avisan. El historial completo queda siempre en <a href="/alerts">Alertas</a>.</p>
+  </fieldset>
+<div class="actions-top">
+    <button type="submit" class="btn btn-primary">💾 Guardar y aplicar</button>
+  </div>
+</form>
+
+<form method="post" action="/notifications/test">
+  <div class="actions-top">
+    <button type="submit" class="btn">📨 Enviar notificación de prueba</button>
+    <a class="btn" href="{{ settings.grafana_ext_url }}" target="_blank">Ver métricas en Grafana ↗</a>
+  </div>
+</form>
+
+{% if not cfg %}
+<div class="empty">El canal de email todavía no fue configurado desde acá.
+  Mientras tanto rige la configuración de <code>.env</code> (si existe).</div>
+{% endif %}
+<script>
+  const presets = {
+    gmail:   { host: 'smtp.gmail.com',    port: 587, tls: true },
+    outlook: { host: 'smtp.office365.com', port: 587, tls: true },
+  };
+  document.getElementById('preset').addEventListener('change', function () {
+    const p = presets[this.value];
+    if (!p) return;
+    document.querySelector('[name=smtp_host]').value = p.host;
+    document.querySelector('[name=smtp_port]').value = p.port;
+    document.querySelector('[name=smtp_tls]').checked = p.tls;
+  });
+</script>
+{% endblock %}

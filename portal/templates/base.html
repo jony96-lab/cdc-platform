@@ -15,6 +15,7 @@
     <a href="/alerts" class="nav-link">Alertas
       {% if nav_alerts > 0 %}<span class="badge badge-red">{{ nav_alerts }}</span>{% endif %}
     </a>
+    <a href="/notifications" class="nav-link">Notificaciones</a>
     <a href="/system" class="nav-link">Sistema</a>
     <div class="nav-right">
       <span class="conn-dot {{ 'ok' if connect_up else 'down' }}" title="Kafka Connect"></span>

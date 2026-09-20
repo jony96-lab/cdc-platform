@@ -126,6 +126,8 @@ services:
       CONNECT_EXT_URL: ${CONNECT_EXT_URL}
       PROM_EXT_URL: ${PROM_EXT_URL}
       ALERTMANAGER_EXT_URL: http://localhost:${ALERTMANAGER_PORT:-9093}
+      ALERTMANAGER_URL: http://alertmanager:9093
+      ALERTMANAGER_CONF_DIR: /etc/cdc-alertmanager
       # BDs del host (para preflight y checks del sistema)
       MYSQL_HOST: ${MYSQL_HOST}
       MYSQL_PORT: ${MYSQL_PORT}
@@ -140,6 +142,7 @@ services:
     volumes:
       - portal-data:/data
       - ./secrets:/opt/connect-secrets
+      - ./build/alertmanager:/etc/cdc-alertmanager
     <<: *host-gateway
     networks: [cdc-net]
     restart: unless-stopped

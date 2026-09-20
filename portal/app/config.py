@@ -9,6 +9,7 @@ class Settings:
     connect_metrics_url: str = os.getenv("CONNECT_METRICS_URL", "http://connect:7072/metrics")
     kafka_bootstrap: str = os.getenv("KAFKA_BOOTSTRAP", "kafka:19092")
     prom_url: str = os.getenv("PROM_URL", "http://prometheus:9090")
+    alertmanager_url: str = os.getenv("ALERTMANAGER_URL", "http://alertmanager:9093")
 
     grafana_ext_url: str = os.getenv("GRAFANA_EXT_URL", "http://localhost:3000")
     kafbat_ext_url: str = os.getenv("KAFBAT_EXT_URL", "http://localhost:8080")

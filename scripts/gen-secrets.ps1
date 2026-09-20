@@ -51,6 +51,11 @@ Render-Template -Src (Join-Path $root 'sql\templates\mysql-seed-inventory.sql.tm
 Render-Template -Src (Join-Path $root 'sql\templates\demodb-postgres-01-init.sql.tmpl') -Dst (Join-Path $root 'build\demodb-init\postgres\01-init.sql') -Vars $vars
 
 # --- Alertmanager: config renderizada con/ sin email ---
+# Si el Portal ya gestiona la config (portal-notif.json), NO pisar: fuente de verdad = UI
+$notifMarker = Join-Path $root 'build\alertmanager\portal-notif.json'
+if (Test-Path $notifMarker) {
+    Write-Host "OK  Alertmanager: gestionado por el Portal (Notificaciones) - no se pisa desde .env" -ForegroundColor DarkGray
+} else {
 $emailEnabled = ($vars['ALERT_EMAIL_ENABLED'] -eq 'true')
 $emailGlobal = ""
 $emailRoutes = ""
@@ -165,6 +170,7 @@ if (Test-Path $amOut) { Remove-Item $amOut -Recurse -Force }
 [System.IO.File]::WriteAllText($amOut, $content, (New-Object System.Text.UTF8Encoding($false)))
 if ($emailEnabled) { Write-Host "OK  Alertmanager: email habilitado ($($vars['ALERT_SMTP_HOST']))" -ForegroundColor Green }
 else { Write-Host "OK  Alertmanager: solo webhook Portal (email deshabilitado)" -ForegroundColor DarkGray }
+}
 
 Write-Host ""
 Write-Host "OK  secrets\default.properties generado" -ForegroundColor Green

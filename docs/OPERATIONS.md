@@ -82,16 +82,21 @@ requiere orden estricto.
 
 ### Alertas por email (módulo)
 
-Configuración en `.env` → `gen-secrets.ps1` renderiza `build/alertmanager/alertmanager.yml`
-→ Alertmanager lo lee al arrancar. **Nunca se commitea** el app-password.
+**Configuración desde el Portal** (recomendado): `http://localhost:8085/notifications`
+→ preset Gmail / Outlook-M365 / SMTP genérico → **Guardar y aplicar** (el Portal
+renderiza `alertmanager.yml` y recarga Alertmanager al instante) →
+**📨 Enviar notificación de prueba** para validar el canal. Funciona con cualquier
+SMTP estándar (Gmail: app-password de 16 chars con 2FA; Outlook/M365:
+smtp.office365.com:587 — M365 puede exigir SMTP AUTH en el tenant).
+
+**Alternativa por `.env`** (bootstrap sin UI): variables `ALERT_*` en `.env` →
+`scripts\gen-secrets.ps1` renderiza. Precedencia: cuando el Portal guardó una vez,
+la config que manda es la del Portal (marca `build/alertmanager/portal-notif.json`;
+`gen-secrets` la respeta y no la pisa).
 
 | Variable | Qué es |
 |---|---|
 | `ALERT_EMAIL_ENABLED` | `true`/`false` — deshabilita el email (quedan solo alertas en el Portal) |
-| `ALERT_SMTP_HOST` / `ALERT_SMTP_PORT` | Gmail: `smtp.gmail.com` / `587` |
-| `ALERT_SMTP_FROM` / `ALERT_SMTP_USER` | tu Gmail |
-| `ALERT_SMTP_PASSWORD` | **app-password de 16 caracteres** (2FA + myaccount.google.com/apppasswords) |
-| `ALERT_EMAIL_TO` | destinatarios separados por coma |
 
 Política implementada:
 - **critical** → email inmediato (`group_wait=0s`, repeat cada 4 h mientras persista)
@@ -101,6 +106,8 @@ Política implementada:
 
 **Aplicar un cambio de configuración:**
 ```powershell
+# via UI: Guardar en /notifications ya recarga solo.
+# via .env:
 scripts\gen-secrets.ps1
 docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d --force-recreate alertmanager
 ```
