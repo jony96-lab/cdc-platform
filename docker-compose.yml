@@ -28,7 +28,7 @@ services:
         KAFKA_BASE_IMAGE: ${KAFKA_IMAGE}
         CURL_IMAGE: ${CURL_IMAGE}
         JMX_EXPORTER_VERSION: ${JMX_EXPORTER_VERSION}
-    image: cdc-platform/kafka:4.3.1
+    image: ${CDC_KAFKA_IMAGE:-cdc-platform/kafka:4.3.1}
     container_name: cdc-kafka
     ports:
       - "${KAFKA_EXTERNAL_PORT:-9092}:9092"
@@ -70,7 +70,7 @@ services:
         CURL_IMAGE: ${CURL_IMAGE}
         DBZ_JDBC_PLUGIN_VERSION: ${DBZ_JDBC_PLUGIN_VERSION}
         JMX_EXPORTER_VERSION: ${JMX_EXPORTER_VERSION}
-    image: cdc-platform/connect:3.6.2
+    image: ${CDC_CONNECT_IMAGE:-cdc-platform/connect:3.6.2}
     container_name: cdc-connect
     depends_on:
       kafka:
@@ -107,7 +107,7 @@ services:
       dockerfile: Dockerfile
       args:
         PYTHON_IMAGE: ${PYTHON_IMAGE}
-    image: cdc-platform/portal:1.0
+    image: ${CDC_PORTAL_IMAGE:-cdc-platform/portal:1.0}
     container_name: cdc-portal
     depends_on:
       connect:
@@ -178,7 +178,7 @@ services:
       dockerfile: Dockerfile
       args:
         PYTHON_IMAGE: ${PYTHON_IMAGE}
-    image: cdc-platform/tester:1.0
+    image: ${CDC_TESTER_IMAGE:-cdc-platform/tester:1.0}
     container_name: cdc-tester
     profiles: ["tools"]
     depends_on:

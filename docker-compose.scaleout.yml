@@ -8,7 +8,7 @@
 services:
 
   connect-worker2:
-    image: cdc-platform/connect:3.6.2
+    image: ${CDC_CONNECT_IMAGE:-cdc-platform/connect:3.6.2}
     pull_policy: never
     container_name: cdc-connect-worker2
     depends_on:

@@ -32,13 +32,43 @@ git tag -a v1.0.0 -m "Primera version: MySQL->Kafka->PostgreSQL, portal, monitor
 git push --tags
 ```
 
-Opcional para clientes sin acceso a internet (air-gapped): publicar las imágenes
-construidas a un registry propio:
+Opcional para clientes sin acceso a internet (air-gapped) o para instalaciones
+sin build: publicar las imágenes construidas al registry.
+
+### Imágenes pre-buildeadas en ghcr.io (recomendado)
+
+El repo publica las imágenes a **GitHub Container Registry** (mismo login que
+GitHub). Quien adopta la plataforma elige:
 
 ```powershell
-docker tag cdc-platform/connect:3.6.2 <registry>/<org>/cdc-connect:3.6.2
-docker push <registry>/<org>/cdc-connect:3.6.2
-# (el .env de cada cliente apunta a las imágenes del registry en vez de buildear)
+# Modo A - build local (por defecto, requiere compilar):
+.\install.ps1
+
+# Modo B - imágenes pre-buildeadas (sin compilar, rápido y bits idénticos):
+#   en .env descomentar las CDC_*_IMAGE apuntando a ghcr.io/jony96-lab/... y:
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml pull
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+```
+
+Variables que controlan las imágenes: `CDC_KAFKA_IMAGE`, `CDC_CONNECT_IMAGE`,
+`CDC_PORTAL_IMAGE`, `CDC_TESTER_IMAGE` (ver `.env.example`). Cada cliente puede
+apuntarlas a SU registry interno si lo necesita.
+
+Para el dueño del proyecto (publicación):
+
+```powershell
+# login una vez (token PAT con scope write:packages):
+docker login ghcr.io -u jony96-lab
+
+# tag + push de las 4 imágenes:
+docker tag cdc-platform/kafka:4.3.1    ghcr.io/jony96-lab/cdc-kafka:4.3.1
+docker tag cdc-platform/connect:3.6.2  ghcr.io/jony96-lab/cdc-connect:3.6.2
+docker tag cdc-platform/portal:1.0     ghcr.io/jony96-lab/cdc-portal:1.0
+docker tag cdc-platform/tester:1.0     ghcr.io/jony96-lab/cdc-tester:1.0
+docker push ghcr.io/jony96-lab/cdc-kafka:4.3.1
+docker push ghcr.io/jony96-lab/cdc-connect:3.6.2
+docker push ghcr.io/jony96-lab/cdc-portal:1.0
+docker push ghcr.io/jony96-lab/cdc-tester:1.0
 ```
 
 ## Cómo la implementa otra persona
