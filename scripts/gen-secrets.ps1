@@ -172,6 +172,61 @@ if ($emailEnabled) { Write-Host "OK  Alertmanager: email habilitado ($($vars['AL
 else { Write-Host "OK  Alertmanager: solo webhook Portal (email deshabilitado)" -ForegroundColor DarkGray }
 }
 
+# --- Lakehouse: configs renderizadas (origen parametrizable mysql|postgres) ---
+if ($vars['LH_SOURCE_ENGINE'] -and (Test-Path (Join-Path $root 'docker-compose.lakehouse.yml'))) {
+    if (-not $vars['LH_SOURCE_DB']) { $vars['LH_SOURCE_DB'] = $vars['CDC_SOURCE_DB'] }
+    if (-not $vars['LH_CATALOG_DB']) { $vars['LH_CATALOG_DB'] = 'iceberg_catalog' }
+    $lhm = ""
+    $lhp = ""
+    if ($vars['LH_SOURCE_ENGINE'] -eq 'postgres') {
+        $lhp = @"
+debezium.source.connector.class=io.debezium.connector.postgresql.PostgresConnector
+debezium.source.database.hostname=$($vars['PG_HOST'])
+debezium.source.database.port=$($vars['PG_PORT'])
+debezium.source.database.user=$($vars['PG_CDC_ROLE'])
+debezium.source.database.password=$($vars['PG_CDC_PASSWORD'])
+debezium.source.database.dbname=$($vars['LH_SOURCE_DB'])
+debezium.source.plugin.name=pgoutput
+debezium.source.slot.name=debezium_lh
+debezium.source.publication.name=cdc_pub_lh
+debezium.source.publication.autocreate.mode=filtered
+debezium.source.topic.prefix=cdclh
+debezium.source.heartbeat.interval.ms=10000
+"@
+    } else {
+        $lhm = @"
+debezium.source.connector.class=io.debezium.connector.mysql.MySqlConnector
+debezium.source.database.hostname=$($vars['MYSQL_HOST'])
+debezium.source.database.port=$($vars['MYSQL_PORT'])
+debezium.source.database.user=$($vars['MYSQL_CDC_USER'])
+debezium.source.database.password=$($vars['MYSQL_CDC_PASSWORD'])
+debezium.source.database.include.list=$($vars['LH_SOURCE_DB'])
+debezium.source.database.server.id=7401
+debezium.source.include.schema.changes=false
+debezium.source.topic.prefix=cdclh
+debezium.source.heartbeat.interval.ms=10000
+"@
+    }
+    Render-Template -Src (Join-Path $root 'config\lakehouse\debezium\application.properties.tmpl') -Dst (Join-Path $root 'build\lakehouse\debezium\application.properties') -Vars $vars
+    # inyectar bloque de origen con valores reales
+    $appPath = Join-Path $root 'build\lakehouse\debezium\application.properties'
+    $app = Get-Content -Raw $appPath
+    $app = $app.Replace('{{MYSQL_SOURCE_BLOCK}}', $lhm).Replace('{{PG_SOURCE_BLOCK}}', $lhp)
+    [System.IO.File]::WriteAllText($appPath, $app, (New-Object System.Text.UTF8Encoding($false)))
+
+    Render-Template -Src (Join-Path $root 'config\lakehouse\trino\etc\catalog\iceberg.properties.tmpl') -Dst (Join-Path $root 'build\lakehouse\trino\etc\catalog\iceberg.properties') -Vars $vars
+    # copiar etc estatico de Trino (config/jvm/node) junto al catalogo renderizado
+    $trinoEtcDst = Join-Path $root 'build\lakehouse\trino\etc'
+    New-Item -ItemType Directory -Force -Path (Join-Path $trinoEtcDst 'catalog') | Out-Null
+    foreach ($f in @('config.properties', 'jvm.config', 'node.properties')) {
+        Copy-Item (Join-Path $root "config\lakehouse\trino\etc\$f") $trinoEtcDst -Force
+    }
+    Render-Template -Src (Join-Path $root 'sql\templates\pg-iceberg-catalog.sql.tmpl') -Dst (Join-Path $root 'build\host-sql\postgres\03-iceberg-catalog.sql') -Vars $vars
+    Write-Host "OK  Lakehouse: config renderizada (origen = $($vars['LH_SOURCE_ENGINE']))" -ForegroundColor Green
+} else {
+    Write-Host "OK  Lakehouse: omitido (LH_SOURCE_ENGINE sin definir)" -ForegroundColor DarkGray
+}
+
 Write-Host ""
 Write-Host "OK  secrets\default.properties generado" -ForegroundColor Green
 Write-Host "OK  SQL renderizado en build\host-sql\ y build\demodb-init\" -ForegroundColor Green

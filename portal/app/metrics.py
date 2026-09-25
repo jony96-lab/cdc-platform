@@ -33,6 +33,8 @@ PIPELINE_INFO = Gauge(
 MILLIS_BEHIND_SOURCE = Gauge(
     "cdc_milli_seconds_behind_source",
     "Lag del source Debezium (ms) re-expuesto desde JMX de Connect", ["server"])
+COMPONENT_UP = Gauge(
+    "cdc_component_up", "1 si el componente esta alcanzable", ["component"])
 PORTAL_UP = Gauge("cdc_portal_up", "Portal vivo", [])
 
 _LAG_PATTERN = re.compile(
@@ -109,10 +111,30 @@ async def poll_once(client) -> None:
     CACHE["last_poll"] = time.time()
 
 
+import socket as _socket
+_LH_COMPONENTS = [("minio", "minio", 9000), ("trino", "trino", 8080),
+                  ("debezium-lakehouse", "debezium-lakehouse", 8080)]
+
+
+def _tcp_up(host: str, port: int) -> bool:
+    try:
+        with _socket.create_connection((host, int(port)), timeout=3):
+            return True
+    except OSError:
+        return False
+
+
+async def check_lakehouse_components() -> None:
+    for label, host, port in _LH_COMPONENTS:
+        ok = await asyncio.to_thread(_tcp_up, host, port)
+        COMPONENT_UP.labels(component=label).set(1 if ok else 0)
+
+
 async def poller_loop(client) -> None:
     while True:
         try:
             await poll_once(client)
+            await check_lakehouse_components()
         except asyncio.CancelledError:
             raise
         except Exception:

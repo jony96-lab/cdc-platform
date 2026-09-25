@@ -85,6 +85,17 @@ scripts\up.ps1 -WithDemoDb                    # levanta mysql:8.4 y postgres:17 
 scripts\register-connectors.ps1 -Demo         # registra el pipeline demo (topics cdcdemo.*)
 ```
 
+### Lakehouse (CDC → Parquet/Iceberg en MinIO, SQL con Trino)
+
+```powershell
+scripts\lakehouse-up.ps1                      # minio + debezium-server-iceberg + trino
+scripts\lakehouse-sql.ps1 "SELECT * FROM iceberg.cdc.lh_cdclh_inventory_customers LIMIT 10"
+```
+
+Origen parametrizable (`LH_SOURCE_ENGINE=mysql|postgres`), formato Parquet +
+Apache Iceberg (upserts ACID, evolución de esquema). Detalles y conceptos:
+[docs/LAKEHOUSE.md](docs/LAKEHOUSE.md).
+
 ## Estructura del repositorio
 
 ```
@@ -136,7 +147,9 @@ docs/            # ARCHITECTURE.md, OPERATIONS.md, RUNBOOK.md
 
 Más detalle: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ·
 operación diaria: [docs/OPERATIONS.md](docs/OPERATIONS.md) ·
-fallas y recuperación: [docs/RUNBOOK.md](docs/RUNBOOK.md)
+fallas y recuperación: [docs/RUNBOOK.md](docs/RUNBOOK.md) ·
+[lakehouse (CDC→Parquet/Iceberg en MinIO + Trino)](docs/LAKEHOUSE.md) ·
+[integración Microsoft Fabric](docs/FABRIC.md)
 
 ## Llevarla a otra máquina o servidor
 

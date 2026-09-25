@@ -1,0 +1,15 @@
+connector.name=iceberg
+iceberg.catalog.type=jdbc
+iceberg.jdbc-catalog.catalog-name=iceberg
+iceberg.jdbc-catalog.driver-class=org.postgresql.Driver
+iceberg.jdbc-catalog.connection-url=jdbc:postgresql://{{PG_HOST}}:{{PG_PORT}}/{{LH_CATALOG_DB}}
+iceberg.jdbc-catalog.connection-user={{PG_CDC_ROLE}}
+iceberg.jdbc-catalog.connection-password={{PG_CDC_PASSWORD}}
+iceberg.jdbc-catalog.default-warehouse-dir=s3://lakehouse/warehouse
+iceberg.file-format=PARQUET
+fs.s3.enabled=true
+s3.endpoint=http://minio:9000
+s3.path-style-access=true
+s3.region=us-east-1
+s3.aws-access-key={{LH_MINIO_ROOT_USER}}
+s3.aws-secret-key={{LH_MINIO_ROOT_PASSWORD}}

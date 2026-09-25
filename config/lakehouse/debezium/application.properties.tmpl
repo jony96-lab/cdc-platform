@@ -1,0 +1,64 @@
+﻿# ==============================================================
+# Debezium Server -> Iceberg sink (parquet en MinIO)
+# Template: {{VAR}} renderizado por gen-secrets.ps1
+# Origen parametrizable: LH_SOURCE_ENGINE = mysql | postgres
+# ==============================================================
+
+debezium.sink.type=iceberg
+debezium.sink.iceberg.table-prefix=lh_
+debezium.sink.iceberg.upsert=true
+debezium.sink.iceberg.upsert-keep-deletes=false
+debezium.sink.iceberg.write.format.default=parquet
+debezium.sink.iceberg.allow-field-addition=true
+debezium.sink.iceberg.catalog-name=iceberg
+
+# Catalogo JDBC sobre PostgreSQL del host (compartido con Trino)
+debezium.sink.iceberg.catalog-impl=org.apache.iceberg.jdbc.JdbcCatalog
+debezium.sink.iceberg.uri=jdbc:postgresql://{{PG_HOST}}:{{PG_PORT}}/{{LH_CATALOG_DB}}
+debezium.sink.iceberg.jdbc.user={{PG_CDC_ROLE}}
+debezium.sink.iceberg.jdbc.password={{PG_CDC_PASSWORD}}
+debezium.sink.iceberg.table-namespace=cdc
+
+debezium.sink.iceberg.warehouse=s3://lakehouse/warehouse
+debezium.sink.iceberg.io-impl=org.apache.iceberg.io.ResolvingFileIO
+debezium.sink.iceberg.s3.endpoint=http://minio:9000
+debezium.sink.iceberg.s3.path-style-access=true
+debezium.sink.iceberg.s3.client.region=us-east-1
+debezium.sink.iceberg.s3.region=us-east-1
+debezium.sink.iceberg.s3.access-key-id={{LH_MINIO_ROOT_USER}}
+debezium.sink.iceberg.s3.secret-access-key={{LH_MINIO_ROOT_PASSWORD}}
+
+# Formato de eventos + schemas (obligatorio)
+debezium.format.value.schemas.enable=true
+debezium.format.key.schemas.enable=true
+debezium.format.value=json
+debezium.format.key=json
+
+# Offsets e historial de esquemas persistidos EN el catalogo Iceberg (durables)
+debezium.source.offset.storage=io.debezium.server.iceberg.offset.IcebergOffsetBackingStore
+debezium.source.offset.storage.iceberg.table-name=lh_offset_storage
+debezium.source.schema.history.internal=io.debezium.server.iceberg.history.IcebergSchemaHistory
+debezium.source.schema.history.internal.iceberg.table-name=lh_schema_history
+
+debezium.source.offset.flush.interval.ms=0
+
+# ---------- ORIGEN: MYSQL ----------
+{{MYSQL_SOURCE_BLOCK}}
+
+# ---------- ORIGEN: POSTGRESQL ----------
+{{PG_SOURCE_BLOCK}}
+
+# Aplanado de eventos: el after pasa a ser la fila; metadata como columnas __*
+# Debezium 3.x antepone "__" a cada campo agregado -> usar alias SIN __ para
+# que queden __op/__table/__source_ts_ns/__db (el sink usa __op para upsert)
+debezium.transforms=unwrap
+debezium.transforms.unwrap.type=io.debezium.transforms.ExtractNewRecordState
+debezium.transforms.unwrap.add.fields=op:op,table:table,source.ts_ns:source_ts_ns,db:db
+debezium.transforms.unwrap.delete.tombstone.handling.mode=rewrite
+debezium.transforms.unwrap.drop.tombstones=true
+
+quarkus.log.level=INFO
+quarkus.log.console.json=false
+quarkus.log.category."org.apache.hadoop".level=WARN
+quarkus.log.category."org.apache.parquet".level=WARN
+quarkus.log.category."org.eclipse.jetty".level=WARN

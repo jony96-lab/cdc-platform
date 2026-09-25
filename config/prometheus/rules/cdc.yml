@@ -98,6 +98,15 @@ groups:
           summary: "Portal de Pipelines caído"
           description: "La UI de administración no responde (el pipeline sigue corriendo, solo se perdió visibilidad/alertas vía webhook)."
 
+      - alert: CdcLakehouseComponentDown
+        expr: cdc_component_up == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Componente lakehouse {{ $labels.component }} no alcanzable"
+          description: "El modulo lakehouse (MinIO/Trino/Debezium Server) tiene un componente caido hace 2+ minutos. La captura CDC sigue corriendo; al volver, se reanuda el aterrizaje en Parquet."
+
       - alert: KafkaDiskGrowingFast
         expr: sum(kafka_log_size_bytes) > 5e9
         for: 5m

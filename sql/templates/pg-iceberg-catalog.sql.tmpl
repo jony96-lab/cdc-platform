@@ -1,0 +1,8 @@
+-- ============================================================
+-- Catalogo Iceberg (JdbcCatalog) en PostgreSQL del host
+-- Guarda metadatos de tablas Iceberg + offsets + schema history
+-- Template: {{VAR}} renderizado por gen-secrets.ps1
+-- ============================================================
+
+SELECT 'CREATE DATABASE {{LH_CATALOG_DB}} OWNER {{PG_CDC_ROLE}}'
+WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '{{LH_CATALOG_DB}}')\gexec

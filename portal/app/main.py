@@ -374,6 +374,10 @@ async def system_page(request: Request):
     comps.append(("Prometheus", await _http_ok("prometheus", 9090, "/-/healthy"), ""))
     comps.append(("Grafana", await _http_ok("grafana", 3000, "/api/health"), ""))
     comps.append(("Alertmanager", await _http_ok("alertmanager", 9093, "/-/healthy"), ""))
+    comps.append(("MinIO (lakehouse)", _tcp_ok("minio", 9000), "S3 :9000 · consola :9001"))
+    comps.append(("Trino (lakehouse)", _tcp_ok("trino", 8080), "SQL :8086 (host)"))
+    comps.append(("Debezium Server lakehouse", _tcp_ok("debezium-lakehouse", 8080),
+                  "CDC -> Iceberg/Parquet"))
     for label, ok in db_results:
         comps.append((label, ok, ""))
 

@@ -8,7 +8,8 @@ $ordered = @(
     '/tests/test_e2e_snapshot.py',
     '/tests/test_e2e_dml.py',
     '/tests/test_e2e_ddl.py',
-    '/tests/test_portal_api.py'
+    '/tests/test_portal_api.py',
+    '/tests/test_lakehouse.py'
 )
 $pytestArgs = if ($Filter) { @('pytest', '-v', '--tb=short', '-p', 'no:cacheprovider', '-k', $Filter, '/tests') }
               else { @('pytest', '-v', '--tb=short', '-p', 'no:cacheprovider') + $ordered }
