@@ -6,8 +6,8 @@ en MinIO.
 
 ## Paso 1 — Instalar el driver ODBC de Trino
 
-1. Ir a https://github.com/trino-io/trino-odbc → **Releases** → descargar el
-   instalador `.msi` de Windows (x64) más reciente.
+1. Ir a https://github.com/trinodb/trino-odbc → **Releases** → descargar el
+   instalador `.msi` de Windows x64 más reciente (ej. `TrinoODBC_x64.msi` de v0.0.7).
 2. Instalar (siguiente-siguiente). Es el driver open source mantenido por la
    comunidad de Trino.
    - Alternativa comercial con soporte: Simba ODBC de insightsoftware.
