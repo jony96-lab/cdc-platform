@@ -1,11 +1,41 @@
 # ==============================================================
-# Modulo Lakehouse (perfil "lakehouse"): CDC -> Parquet/Iceberg en MinIO
-#   - Independiente del pipeline JDBC: se levanta/baja sin tocarlo
-#   - Origen parametrizable por .env: LH_SOURCE_ENGINE = mysql | postgres
-#   - Formato tabla: Apache Iceberg (parquet + metadata) | catalogo: JDBC sobre PostgreSQL
-# Uso: scripts/lakehouse-up.ps1     (asegura catalogo + levanta + espera)
-#      scripts/lakehouse-sql.ps1    (consola SQL de Trino)
+# PROYECTO INDEPENDIENTE: cdc-lakehouse
+#   CDC -> Parquet/Iceberg en MinIO + SQL con Trino
+#
+# Es un proyecto Compose SEPARADO del cdc-platform (no comparten
+# ciclo de vida). Requisitos:
+#   - cdc-platform creado al menos una vez (red cdc-net) para el
+#     monitoreo cruzado del Portal. Si no queres esa integracion,
+#     borra la seccion de cdc-net (external) de este archivo.
+#   - LH_* y PG_* definidos en .env (render por gen-secrets.ps1)
+#
+# Uso (desde la raiz del repo):
+#   scripts/lakehouse-up.ps1
+#   scripts/lakehouse-sql.ps1 "SELECT ..."
+#   docker compose -f lakehouse/docker-compose.yml down   (solo lakehouse)
 # ==============================================================
+
+name: cdc-lakehouse
+
+networks:
+  lh-net:
+    name: lh-net
+    driver: bridge
+  cdc-net:
+    external: true
+    name: cdc-net
+
+volumes:
+  minio-data:
+    name: cdc-minio-data        # mismos volumenes que uso previo -> datos preservados
+  trino-data:
+    name: cdc-trino-data
+  lakehouse-offsets:
+    name: cdc-lakehouse-offsets
+
+x-host-gateway: &host-gateway
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
 
 services:
 
@@ -21,7 +51,7 @@ services:
       - "9001:9001"
     volumes:
       - minio-data:/data
-    networks: [cdc-net]
+    networks: [lh-net, cdc-net]
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live >/dev/null || exit 1"]
@@ -40,7 +70,7 @@ services:
         condition: service_healthy
     entrypoint: ["/bin/sh", "-c",
       "mc alias set lh http://minio:9000 ${LH_MINIO_ROOT_USER} ${LH_MINIO_ROOT_PASSWORD} && mc mb -p lh/lakehouse && echo 'bucket lakehouse OK'"]
-    networks: [cdc-net]
+    networks: [lh-net]
     restart: "no"
 
   # CDC -> Iceberg (parquet) en MinIO
@@ -56,9 +86,8 @@ services:
     environment:
       AWS_REGION: us-east-1
       AWS_DEFAULT_REGION: us-east-1
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks: [cdc-net]
+    <<: *host-gateway
+    networks: [lh-net, cdc-net]
     restart: unless-stopped
 
   # Motor SQL sobre el lakehouse
@@ -73,9 +102,8 @@ services:
       - trino-data:/data/trino
     ports:
       - "8086:8080"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks: [cdc-net]
+    <<: *host-gateway
+    networks: [lh-net, cdc-net]
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/v1/info >/dev/null || exit 1"]
@@ -83,11 +111,3 @@ services:
       timeout: 10s
       retries: 12
       start_period: 30s
-
-volumes:
-  minio-data:
-    name: cdc-minio-data
-  trino-data:
-    name: cdc-trino-data
-  lakehouse-offsets:
-    name: cdc-lakehouse-offsets

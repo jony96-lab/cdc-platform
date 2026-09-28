@@ -201,6 +201,8 @@ services:
       TEST_PG_USER: ${PG_CDC_ROLE}
       TEST_PG_PASSWORD: ${PG_CDC_PASSWORD}
       TEST_TOPIC_PREFIX: ${CDC_TOPIC_PREFIX}
+      LH_SOURCE_ENGINE: ${LH_SOURCE_ENGINE}
+      LH_SOURCE_DB: ${LH_SOURCE_DB}
       PORTAL_URL: http://portal:8085
       CONNECT_URL: http://connect:8083
     volumes:

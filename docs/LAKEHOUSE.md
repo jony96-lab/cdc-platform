@@ -1,6 +1,28 @@
 # Lakehouse — CDC → Parquet en MinIO, con SQL vía Trino
 
-*(Módulo independiente: se levanta y baja sin tocar el pipeline JDBC.)*
+*(Proyecto Compose INDEPENDIENTE: `lakehouse/docker-compose.yml`, proyecto `cdc-lakehouse`.
+Se levanta y baja sin tocar el cdc-platform. Comparte la red `cdc-net` para que el
+Portal lo monitoree; el requisito es que cdc-platform se haya levantado una vez.)*
+
+## Origen parametrizable
+
+En `.env`: **`LH_SOURCE_ENGINE=mysql|postgres`** + `LH_SOURCE_DB`. Al cambiar el motor:
+
+```powershell
+scripts\gen-secrets.ps1        # re-renderiza la config de captura
+scripts\lakehouse-up.ps1       # recrea el contenedor
+# si venis de OTRO motor: los offsets viejos chocan con el nuevo origen ->
+#   DROP de lh_offset_storage y lh_schema_history via Trino antes de recrear
+```
+
+Al cambiar de motor, las tablas del motor anterior quedan congeladas (histórico);
+borralas via Trino (`DROP TABLE ...`) si no las queres.
+
+**PostgreSQL como origen (requisitos)**: rol con `REPLICATION` (el provisioning ya lo
+garantiza), y la publication `cdc_pub_lh` es `FOR ALL TABLES` — como su creacion
+requiere superusuario, `lakehouse-up.ps1` la maneja: la publication debe existir
+antes (la crea el provisioning o el superusuario). Nuevas tablas del origen se
+capturan solas.
 
 ## Conceptos (guía rápida)
 
@@ -43,14 +65,15 @@ esquema sin reescribir historia.
 ## Uso
 
 ```powershell
-# .env: LH_SOURCE_ENGINE = mysql | postgres  (origen parametrizable)
-scripts\lakehouse-up.ps1          # renderiza, asegura catálogo, levanta, espera snapshot
-scripts\lakehouse-sql.ps1 "SELECT * FROM iceberg.cdc.lh_cdclh_inventory_customers LIMIT 10"
+scripts\lakehouse-up.ps1          # renderiza, asegura catalogo, levanta, espera snapshot
+scripts\lakehouse-sql.ps1 "SELECT * FROM iceberg.cdc.lh_cdclh_public_ventas LIMIT 10"
 scripts\lakehouse-sql.ps1         # consola SQL interactiva
+scripts\lakehouse-down.ps1        # baja solo el lakehouse (datos conservados)
 ```
 
 - **Consola MinIO**: http://localhost:9001 (usuario: `LH_MINIO_ROOT_USER` de `.env`)
-- **Trino**: http://localhost:8086
+- **Trino**: http://localhost:8086 (en DBeaver: driver Trino,
+  `jdbc:trino://localhost:8086/iceberg/cdc`, usuario cualquiera)
 
 ## Esquema de las tablas lakehouse
 

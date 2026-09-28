@@ -27,9 +27,9 @@ if (Test-Path $sqlCat) {
     Write-Host "  OK catalogo Iceberg ($($vars['LH_CATALOG_DB']) en PostgreSQL)" -ForegroundColor Green
 }
 
-# 3. Stack
-$files = @('-f', 'docker-compose.yml', '-f', 'docker-compose.monitoring.yml', '-f', 'docker-compose.lakehouse.yml')
-& docker compose @files --profile lakehouse-init up -d minio minio-init debezium-lakehouse trino
+# 3. Stack (proyecto INDEPENDIENTE cdc-lakehouse; --project-directory raiz para
+#    resolver .env y las rutas build/ relativas correctamente)
+& docker compose -f lakehouse/docker-compose.yml --project-directory . --profile lakehouse-init up -d minio minio-init debezium-lakehouse trino
 if ($LASTEXITCODE -ne 0) { throw "docker compose up (lakehouse) fallo" }
 
 Wait-ContainerHealthy 'cdc-minio' 120
