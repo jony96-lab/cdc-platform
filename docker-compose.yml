@@ -207,6 +207,7 @@ services:
       CONNECT_URL: http://connect:8083
     volumes:
       - ./tests:/tests:ro
+      - ./examples:/examples:ro
     <<: *host-gateway
     networks: [cdc-net]
     command: ["pytest", "-v", "--tb=short", "/tests"]
