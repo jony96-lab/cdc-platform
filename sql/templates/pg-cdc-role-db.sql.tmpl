@@ -4,15 +4,15 @@
 -- Idempotente (se ejecuta con psql, base 'postgres').
 -- ============================================================
 
--- Rol (idempotente con \gexec)
-SELECT 'CREATE ROLE {{PG_CDC_ROLE}} LOGIN PASSWORD ''{{PG_CDC_PASSWORD}}'''
+-- Rol (idempotente con \gexec) con atributo REPLICATION (necesario para CDC)
+SELECT 'CREATE ROLE {{PG_CDC_ROLE}} LOGIN REPLICATION PASSWORD ''{{PG_CDC_PASSWORD}}'''
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{{PG_CDC_ROLE}}')\gexec
 
--- Si el rol ya existia, asegurar password actualizado
+-- Si el rol ya existia, asegurar password y REPLICATION
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{{PG_CDC_ROLE}}') THEN
-    EXECUTE format('ALTER ROLE {{PG_CDC_ROLE}} LOGIN PASSWORD %L', '{{PG_CDC_PASSWORD}}');
+    EXECUTE format('ALTER ROLE {{PG_CDC_ROLE}} LOGIN REPLICATION PASSWORD %L', '{{PG_CDC_PASSWORD}}');
   END IF;
 END $$;
 

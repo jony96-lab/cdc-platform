@@ -189,7 +189,7 @@ debezium.source.database.dbname=$($vars['LH_SOURCE_DB'])
 debezium.source.plugin.name=pgoutput
 debezium.source.slot.name=debezium_lh
 debezium.source.publication.name=cdc_pub_lh
-debezium.source.publication.autocreate.mode=filtered
+debezium.source.publication.autocreate.mode=all_tables
 debezium.source.topic.prefix=cdclh
 debezium.source.heartbeat.interval.ms=10000
 "@
