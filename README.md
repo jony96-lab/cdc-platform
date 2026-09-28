@@ -149,6 +149,7 @@ Más detalle: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ·
 operación diaria: [docs/OPERATIONS.md](docs/OPERATIONS.md) ·
 fallas y recuperación: [docs/RUNBOOK.md](docs/RUNBOOK.md) ·
 [lakehouse (CDC→Parquet/Iceberg en MinIO + Trino)](docs/LAKEHOUSE.md) ·
+[consumo con Power BI](docs/POWERBI.md) ·
 [integración Microsoft Fabric](docs/FABRIC.md)
 
 ## Llevarla a otra máquina o servidor
